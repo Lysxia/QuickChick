@@ -1,4 +1,3 @@
-
 .PHONY: plugin install clean
 
 # Here is a hack to make $(eval $(shell work
@@ -26,11 +25,11 @@ tests:
 	cd examples/stlc; make clean && make
 	cd examples/ifc-basic; make clean && make && coqc Driver.v
 
-Makefile.coq: Make
-	coq_makefile -f Make -o Makefile.coq
+Makefile.coq: _CoqProject
+	coq_makefile -f _CoqProject -o Makefile.coq
 
 clean:
-         # This might not work on macs, but then not my problem
+	 # This might not work on macs, but then not my problem
 	find . -regex ".*\.vo\|.*\.d\|.*\.glob\|.*\.o\|.*\.cmi\|.*\.cmx\|.*\.cmxs\|.*\.cmo\|.*\.bak\|.*~" -type f -delete
 	rm -f Makefile.coq
 
