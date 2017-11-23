@@ -1,16 +1,16 @@
 Set Warnings "-extraction-opaque-accessed,-extraction".
 Set Warnings "-notation-overridden,-parsing".
 
-From QuickChick Require Import QuickChick Tactics.
 Require Import String. Open Scope string.
 
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype seq.
+From QuickChick Require Import QuickChick Tactics GenLow GenHigh.
+Import QcDefaultNotation.
+Import QcDoNotation.
+Open Scope qc_scope.
 
-Import GenLow GenHigh.
 Require Import List.
 Import ListNotations.
-Import QcDefaultNotation. Open Scope qc_scope.
-Import QcDoNotation.
 
 Set Bullet Behavior "Strict Subproofs".
 

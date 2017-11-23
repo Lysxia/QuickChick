@@ -55,8 +55,8 @@ quickChickTool: src/quickChickToolTypes.cmo
 	ocamlc -o src/quickChickTool unix.cma str.cma src/quickChickToolTypes.cmo src/quickChickToolLexer.cmo src/quickChickToolParser.cmo src/quickChickTool.cmo
 
 tests:
-	coqc examples/DependentTest.v
-	cd examples/ifc-basic; make clean && make
+	coqc -Q src/ QuickChick examples/DependentTest.v
+	$(MAKE) -C examples/ifc-basic
 #	cd examples/RedBlack; make clean && make
 #	cd examples/stlc; make clean && make
 
