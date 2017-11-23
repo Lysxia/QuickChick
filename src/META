@@ -1,0 +1,4 @@
+description = "QuickChick extraction deps"
+requires = "pringo"
+version = "dev"
+archive(native) = "quickchick_lib.cmxa"
