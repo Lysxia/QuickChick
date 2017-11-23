@@ -47,3 +47,6 @@ src/genLib.ml
 src/unify.ml
 src/sizedProofs.ml
 src/genSTCorrect.ml
+src/quickchick_lib.mlpack
+src/sPRNG.ml
+src/sPRNG.mli

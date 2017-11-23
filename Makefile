@@ -14,8 +14,8 @@ $(call includecmdwithout@,$(COQBIN)coqtop -config)
 all: plugin documentation-check
 	$(MAKE) quickChickTool
 
-plugin: Makefile.coq 
-	$(MAKE) -f Makefile.coq 
+plugin: Makefile.coq Makefile.coq.local
+	$(MAKE) -f Makefile.coq
 
 documentation-check: BasicInterface.vo DocumentationCheck.vo
 
@@ -24,15 +24,35 @@ BasicInterface.vo DocumentationCheck.vo: BasicInterface.v DocumentationCheck.v s
 	coqc -R src QuickChick -I src DocumentationCheck.v
 
 TEMPFILE := $(shell mktemp)
+OPAM_BIN := $(shell opam config var bin)
+OPAM_LIB := $(shell opam config var lib)
 
-install: all
-	$(V)$(MAKE) -f Makefile.coq install > $(TEMPFILE) || cat $(TEMPFILE)
-  # Manually copying the remaining files
-#	 $(V)cp src/quickChickLib.cmx $(COQLIB)/user-contrib/QuickChick
-#	 $(V)cp src/quickChickLib.o $(COQLIB)/user-contrib/QuickChick
-	 $(V)cp src/quickChickTool $(shell echo $(PATH) | tr ':' "\n" | grep opam | uniq)/quickChick
+install: all install-manual install-plugin
 
-install-plugin:
+QC_LIB := \
+  src/quickchick_lib.a \
+  src/quickchick_lib.cmi \
+  src/quickchick_lib.cmx \
+  src/quickchick_lib.cmxa \
+  src/quickchick_lib.cmxs
+INSTALL_CMD := ocamlfind install QuickChick
+INSTALL_DIR = \
+  -destdir $(OPAM_LIB)/coq/user-contrib \
+  -metadir $(OPAM_LIB)
+
+# Manually copying the remaining files
+install-manual: all src/META $(QC_LIB)
+	$(V)cp src/quickChickTool $(OPAM_BIN)/quickChick
+	$(V)$(INSTALL_CMD) $(INSTALL_DIR) src/META $(QC_LIB) || $(INSTALL_CMD) -add $(INSTALL_DIR) $(QC_LIB)
+
+uninstall: uninstall-manual
+	$(V)rm -rf '$(OPAM_LIB)/coq/user-contrib/QuickChick'
+
+uninstall-manual:
+	$(V)rm $(OPAM_BIN)/quickChick
+	$(V)ocamlfind remove QuickChick $(INSTALL_DIR)
+
+install-plugin: all
 	$(V)$(MAKE) -f Makefile.coq install > $(TEMPFILE) || cat $(TEMPFILE)
 
 src/quickChickToolLexer.cmo : src/quickChickToolLexer.mll 
@@ -64,6 +84,9 @@ tests:
 Makefile.coq: _CoqProject
 	$(V)coq_makefile -f _CoqProject -o Makefile.coq
 
+Makefile.coq.local: _CoqProject
+	$(V)echo 'src/sPRNG.cmx: CAMLPKGS=-package pringo' > Makefile.coq.local
+
 clean:
          # This might not work on macs, but then not my problem
 	find . -name '*.vo' -print -delete
@@ -78,7 +101,7 @@ clean:
 	find . -name *~ -print -delete
 	find . -name *.conflicts -print -delete
 	find . -name *.output -print -delete
-	rm -f Makefile.coq
+	rm -f Makefile.coq Makefile.coq.local
 
 bc:
 	coqwc src/*.v

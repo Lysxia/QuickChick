@@ -47,8 +47,8 @@ let temp_dirname = Filename.get_temp_dir_name ()
 let link_files = []
 
 (* TODO: in Coq 8.5, fetch OCaml's path from Coq's configure *)
-let ocamlopt = "ocamlopt"
-let ocamlc = "ocamlc"
+let ocamlopt = "ocamlfind opt -package QuickChick -linkpkg"
+let ocamlc = "ocamlfind ocamlc -package QuickChick -linkpkg"
 
 let comp_ml_cmd fn out =
   let path = Lazy.force path in
