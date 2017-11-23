@@ -30,7 +30,7 @@ Lemma nat_lemma :   forall a : nat,
   Some (Init.Nat.pred (Pos.to_nat (Pos.of_nat (S a)))) = Some a.
 Admitted.
 
-Instance coqArbNat : CoArbitrary nat := 
+Instance coArbNat : CoArbitrary nat :=
   {|
     coarbitrary x := Pos.of_nat (S x);
     coarbReverse p := Some (Coq.Init.Peano.pred (Pos.to_nat p))
@@ -38,6 +38,18 @@ Instance coqArbNat : CoArbitrary nat :=
 Proof.
   apply nat_lemma.
 Qed.
+
+Instance coArbBool : CoArbitrary bool :=
+  {|
+    coarbitrary x := if x then 1%positive else 2%positive;
+    coarbReverse x :=
+      match x with
+      | 2%positive => Some false
+      | 1%positive => Some true
+      | _ => None
+      end
+   |}.
+Proof. intros []; auto. Qed.
 
 Local Open Scope positive.
 Fixpoint posToPathAux (p : positive) : SplitPath := 
