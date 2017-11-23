@@ -41,7 +41,11 @@ let path =
 let path = lazy (Filename.dirname (Lazy.force path))
 
 (* Interface with OCaml compiler *)
-let temp_dirname = Filename.get_temp_dir_name ()
+let temp_dirname =
+  let dname = Filename.(concat (get_temp_dir_name ()) "QuickChick") in
+  if not (Sys.file_exists dname) then Unix.mkdir dname 0o755;
+  Filename.set_temp_dir_name dname;
+  dname
 
 (* let link_files = ["quickChickLib.cmx"]*)
 let link_files = []
