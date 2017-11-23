@@ -17,12 +17,14 @@ Import ListNotations.
 Definition prop_false_bool (f : bool -> bool) (b : bool) : bool :=
   f (f b) = b ?.
 
-(* WIP *)
+Definition g := @genFun bool bool coArbBool (@GenOfGenSized bool (@genBoolSized)).
 
-Check @genFun bool bool coArbBool.
+(*
+Print g.
+Compute g.
+Sample (@arbitrary _ g).
+*)
 
-Check @sample (bool -> bool) (@genFun bool bool coArbBool arbitrary).
+Check forAll.
 
-Check (@sample _ (genFun : G (bool -> bool))).
-
-QuickChick (forAll  (fun b => (prop_false_bool (fun _ => b)))).
+QuickChick (forAll (@arbitrary _ g) prop_false_bool).
