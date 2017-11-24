@@ -578,3 +578,222 @@ Qed.
 
 End arbFun_completeness.
 
+Require Import Program.
+Require Import FunInd.
+
+Section CoArbitraryList.
+
+Fixpoint merge_pos (a : positive) (b : positive) : positive :=
+  match a with
+  | xH => xO b
+  | xO ta => xI (xO (merge_pos ta b))
+  | xI ta => xI (xI (merge_pos ta b))
+  end.
+
+Function split_pos (c : positive) : option (positive * positive) :=
+  (* let append f ab :=
+      match ab with
+      | Some (a, b) => Some (f a, b)
+      | None => None
+      end
+  in
+  *)
+  match c with
+  | xO b => Some (xH, b)
+  | xI (xO tc) =>
+    match split_pos tc with
+    | Some (a, b) => Some (xO a, b)
+    | None => None
+    end
+    (* append xO (split_pos tc) *)
+  | xI (xI tc) =>
+    match split_pos tc with
+    | Some (a, b) => Some (xI a, b)
+    | None => None
+    end
+    (* append xI (split_pos tc) *)
+  | _ => None
+  end.
+
+Ltac split_induction c :=
+  functional induction (split_pos c); intros a0 b0 H;
+  try (inversion H; auto).
+
+Lemma split_merge : forall (a b c : positive),
+    merge_pos a b = c <-> Some (a, b) = split_pos c.
+Proof.
+  intros a b c.
+  split.
+  - generalize dependent c.
+    generalize dependent b.
+    induction a; intros b c; intro H; rewrite <- H; simpl;
+      [ erewrite <- IHa | erewrite <- IHa | ]; reflexivity.
+  - generalize dependent b.
+    generalize dependent a.
+    split_induction c;
+      try (simpl; erewrite IHo; auto).
+Qed.
+
+Lemma size_nat_pos : forall (c : positive),
+    (0 < Pos.size_nat c)%nat.
+Proof.
+  destruct c; apply Lt.le_lt_n_Sm; apply PeanoNat.Nat.le_0_l.
+Qed.
+
+Lemma split_decr_1 : forall (a b c : positive),
+    Some (a, b) = split_pos c ->
+    (Pos.size_nat a < Pos.size_nat c)%nat.
+Proof.
+  intros a b c.
+  generalize dependent b.
+  generalize dependent a.
+  split_induction c;
+    simpl; simpl; apply Lt.lt_n_S;
+      [ apply size_nat_pos | | ];
+      destruct a; symmetry in e0; apply IHo in e0;
+      apply (PeanoNat.Nat.lt_trans _ _ _ e0); auto.
+Qed.
+
+Lemma split_decr_2 : forall (a b c : positive),
+    Some (a, b) = split_pos c ->
+    (Pos.size_nat b < Pos.size_nat c)%nat.
+Proof.
+  intros a b c.
+  generalize dependent b.
+  generalize dependent a.
+  split_induction c;
+    try (symmetry in e0; apply IHo in e0;
+         apply (PeanoNat.Nat.lt_trans _ _ _ e0);
+         intuition).
+Qed.
+
+Definition semCogen (A : Type)
+           (coa : A -> positive)
+           (coaR : positive -> option A)
+  := forall (a : A) (c : positive),
+    coa a = c <-> Some a = coaR c.
+
+Definition pairCoa (A B : Type)
+           (coA : A -> positive)
+           (coB : B -> positive)
+  : A * B -> positive :=
+  fun '(a, b) => merge_pos (coA a) (coB b).
+
+Definition pairCoaR (A B : Type)
+           (coAR : positive -> option A)
+           (coBR : positive -> option B)
+  : positive -> option (A * B) :=
+  fun c =>
+    match split_pos c with
+    | None => None
+    | Some (a', b') =>
+      match coAR a', coBR b' with
+      | Some a, Some b => Some (a, b)
+      | _, _ => None
+      end
+    end.
+
+Lemma semCogen_pair :
+  forall (A B : Type)
+         (coA : A -> positive)
+         (coAR : positive -> option A)
+         (coB : B -> positive)
+         (coBR : positive -> option B),
+    semCogen coA coAR ->
+    semCogen coB coBR ->
+    semCogen (pairCoa coA coB) (pairCoaR coAR coBR).
+Proof.
+  intros A B coA coAR coB coBR HA HB [a b] c.
+  unfold pairCoaR.
+  remember (split_pos c) as ab'.
+  eapply iff_trans.
+  apply split_merge.
+  rewrite <- Heqab'.
+  destruct ab' as [[a' b']| ]; split; intro H;
+    try (discriminate H).
+  - injection H as H1 H2.
+    apply HA in H1. rewrite <- H1.
+    apply HB in H2. rewrite <- H2.
+    reflexivity.
+  - remember (coAR a') as a0 eqn:Ha0.
+    remember (coBR b') as b0 eqn:Hb0.
+    destruct a0, b0; try (discriminate H).
+    apply HA in Ha0.
+    apply HB in Hb0.
+    subst.
+    inversion H.
+    reflexivity.
+Qed.
+
+Definition slt (d c : positive) : Prop :=
+  (Pos.size_nat d < Pos.size_nat c)%nat.
+
+(* Explicit decreasingness. *)
+Program Definition pairCoaR' (A B : Type)
+           (coAR : positive -> option A)
+           (c : positive)
+           (coBR : forall (d : positive), slt d c -> option B)
+  : option (A * B) :=
+  match split_pos c with
+  | None => None
+  | Some (a', b') =>
+    match coAR a', coBR b' _ with
+    | Some a, Some b => Some (a, b)
+    | _, _ => None
+    end
+  end.
+
+Next Obligation.
+  eapply split_decr_2.
+  apply Heq_anonymous.
+Qed.
+
+Fixpoint coarbitrary_list
+         (A : Type) (CA : CoArbitrary A) (xs : list A) : positive :=
+  match xs with
+  | nil => xH
+  | x :: xs =>
+    xI (pairCoa coarbitrary (coarbitrary_list CA) (x, xs))
+  end.
+
+Program Fixpoint coarbReverse_list
+         (A : Type) `{CA : CoArbitraryCorrect A} (c : positive)
+         {measure (Pos.size_nat c)} :
+  option (list A) :=
+  match c with
+  | xH => Some nil
+  | xI c0 =>
+    let n := @pairCoaR'
+               _ _
+               coarbReverse
+               c0
+               (fun d p => coarbReverse_list d)
+    in
+    match n with
+    | None => None
+    | Some (x, xs) => Some (x :: xs)
+    end
+  | xO _ => None
+  end.
+
+Next Obligation.
+  eapply PeanoNat.Nat.lt_trans.
+  apply p.
+  auto.
+Qed.
+
+Global Instance coArbList
+         (A : Type) `{CoArbitrary A} : CoArbitrary (list A) :=
+  {|
+    coarbitrary := coarbitrary_list _;
+  |}.
+
+Global Instance coArbListCorrect A `{CoArbitraryCorrect A}
+  : CoArbitraryCorrect (list A) :=
+  {
+    coarbReverse p := coarbReverse_list p;
+  }.
+Proof.
+Admitted.
+
+End CoArbitraryList.
