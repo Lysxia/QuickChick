@@ -36,9 +36,23 @@ Definition prop_false_bool (f : bool -> bool) (b : bool) : bool :=
 
 QuickChick prop_false_bool.
 
+(**  https://github.com/jsverify/jsverify   c.f. README **)
+Definition prop_thrice_bool (f : bool -> bool) (b : bool) : bool :=
+  f (f (f b)) = b ?.
+
+QuickChick prop_thrice_bool.
+
 (* This doesn't look too good without shrinking. *)
 Definition prop_false_nat (f : nat -> nat) (n : nat) : bool :=
   f (f n) <= n + 3 ?.
 
 QuickChick prop_false_nat.
 
+(** Claessen, Haskell'12 **)
+
+Definition prop_map_filter
+           (f : nat -> nat) (p : nat -> bool) (xs : list nat)
+  : bool :=
+  map f (filter p xs) = filter p (map f xs) ?.
+
+QuickChick prop_map_filter.
