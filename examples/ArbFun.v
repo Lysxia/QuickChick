@@ -14,17 +14,31 @@ Open Scope qc_scope.
 Require Import List.
 Import ListNotations.
 
+(** Setting up **)
+
+(* Give high priority to function instance. *)
+Instance genFun (A : Type) (B : Type) (CA : CoArbitrary A) (GB : Gen B) : Gen (A -> B) | 1 := QuickChick.CoArbitrary.genFun.
+
+(** Obviously true properties. **)
+
+(* Note that we could not actually write a generator of functions
+   with mutable and unsplittable seeds. *)
+Definition prop_extensional_refl
+           (f : bool -> bool) (b : bool) : bool :=
+  f b = f b ?.
+
+QuickChick prop_extensional_refl.
+
+(** Obviously false properties. **)
+
 Definition prop_false_bool (f : bool -> bool) (b : bool) : bool :=
   f (f b) = b ?.
 
-Definition g := @genFun bool bool coArbBool (@GenOfGenSized bool (@genBoolSized)).
+QuickChick prop_false_bool.
 
-(*
-Print g.
-Compute g.
-Sample (@arbitrary _ g).
-*)
+(* This doesn't look too good without shrinking. *)
+Definition prop_false_nat (f : nat -> nat) (n : nat) : bool :=
+  f (f n) <= n + 3 ?.
 
-Check forAll.
+QuickChick prop_false_nat.
 
-QuickChick (forAll (@arbitrary _ g) prop_false_bool).
