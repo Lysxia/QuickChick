@@ -16,7 +16,11 @@ Import QcDefaultNotation.
 Set Bullet Behavior "Strict Subproofs".
 
 (** Basic generator instances *)
-Global Instance genBoolSized : GenSized bool := 
+
+Instance genBool : Gen bool :=
+  {| arbitrary := choose (false, true) |}.
+
+Instance genBoolSized : GenSized bool :=
   {| arbitrarySized x := choose (false, true) |}.
 
 Instance genNatSized : GenSized nat := 
@@ -189,10 +193,12 @@ Qed.
 
 Instance boolSizeMonotonic : SizeMonotonic (@arbitrary bool _).
 Proof.
-  unfold arbitrary, GenOfGenSized.
-  eapply sizedSizeMonotonic; unfold arbitrarySized, genBoolSized.
-  intros _. eauto with typeclass_instances.
-  constructor. intros. eapply subset_refl.
+  constructor.
+  intros s1 s2 _.
+  eapply subset_trans;
+    [apply set_eq_set_incl_l | apply set_eq_set_incl_r];
+    apply semChooseSize;
+    auto.
 Qed.
 
 Instance boolSizedMonotonic : SizedMonotonic (@arbitrarySized bool _).
@@ -202,22 +208,22 @@ Qed.
 
 Instance boolCorrect : Correct bool arbitrary.
 Proof.
-  constructor. unfold arbitrary, GenOfGenSized.
-  rewrite semSized.
-  unfold arbitrarySized, genBoolSized.
-  intros x. split; intros H; try now constructor.
-  exists 0. split. constructor.
-  eapply semChooseSize; eauto.
-  destruct x; eauto.
+  constructor.
+  split; intro H.
+  - constructor.
+  - exists 0. split.
+    + constructor.
+    + apply semChooseSize; destruct a; auto.
 Qed.  
 
 Lemma arbBool_correct:
   semGen arbitrary <--> [set: bool].
 Proof.
-rewrite /arbitrary /arbitrarySized /genBoolSized /=.
-rewrite semSized => n; split=> // _.
-exists n; split=> //.
-apply semChooseSize => //=; case n => //.
+  rewrite semChoose.
+  intro a. split.
+  - split => // _.
+  - destruct a; auto.
+  - auto.
 Qed.
 
 Lemma arbNat_correct:
@@ -247,8 +253,10 @@ Qed.
 Lemma arbBool_correctSize s :
   semGenSize arbitrary s <--> [set: bool].
 Proof.
-rewrite /arbitrary //=.
-rewrite semSizedSize semChooseSize //; split=> /RandomQC.leq _ //=; case a=> //=.
+  rewrite semChooseSize; auto.
+  intro a.
+  split => /RandomQC.leq _ //=.
+  destruct a; auto.
 Qed.
 
 Lemma arbNat_correctSize s :
