@@ -16,7 +16,12 @@ Class CoArbitrary (A : Type) : Type :=
   {
     coarbitrary : A -> positive;
     coarbReverse : positive -> option A;
-    coarbCorrect : forall a p, p = coarbitrary a <-> coarbReverse p = Some a
+  }.
+
+Class CoArbitraryCorrect (A : Type) (CA : CoArbitrary A) : Type :=
+  {
+    coarbCorrect :
+      forall a p, p = coarbitrary a <-> coarbReverse p = Some a
   }.
 
 Instance coArbPos : CoArbitrary positive := 
@@ -24,7 +29,9 @@ Instance coArbPos : CoArbitrary positive :=
     coarbitrary x := x;
     coarbReverse x := Some x
   |}.
-Proof. split; intro H; inversion H; reflexivity. Qed.
+
+Instance coArbPosCorrect : CoArbitraryCorrect coArbPos.
+Proof. constructor. split; intro H; inversion H; reflexivity. Qed.
 
 Lemma nat_lemma: forall (a : nat) (p : positive),
   Init.Nat.pred (Pos.to_nat p) = a <-> p = Pos.of_nat (S a).
@@ -35,13 +42,14 @@ Instance coArbNat : CoArbitrary nat :=
     coarbitrary x := Pos.of_nat (S x);
     coarbReverse p := Some (Coq.Init.Peano.pred (Pos.to_nat p))
   |}.
+
+Instance coArbNatCorrect : CoArbitraryCorrect coArbNat.
 Proof.
-  split.
-  - intro H.
-    apply f_equal.
+  constructor.
+  split; intro H; simpl.
+  - apply f_equal.
     apply nat_lemma. auto.
-  - intro H.
-    apply nat_lemma.
+  - apply nat_lemma.
     inversion H.
     auto.
 Qed.
@@ -56,7 +64,10 @@ Instance coArbBool : CoArbitrary bool :=
       | _ => None
       end
    |}.
+
+Instance coArbBoolCorrect : CoArbitraryCorrect coArbBool.
 Proof.
+  constructor.
   split; intro H; destruct a; repeat (destruct p; inversion H);
     reflexivity.
 Qed.
@@ -516,10 +527,14 @@ Lemma coarbLePreservesLe : forall {A : Type} `{_ : CoArbitrary A} (x y : A),
 by [].
 Qed.
 
-Theorem coarbComplete : forall {A : Type} `{_ : CoArbitrary A} (max : A)
-                               (f : A -> RandomSeed),
-                          exists seed, forall a, coarbLe a max ->
-                                          varySeed (posToPath (coarbitrary a)) seed = f a.
+Theorem coarbComplete :
+  forall {A : Type} `{CA : CoArbitrary A} {_ : CoArbitraryCorrect CA}
+         (max : A)
+         (f : A -> RandomSeed),
+  exists seed, forall a,
+      coarbLe a max ->
+      varySeed (posToPath (coarbitrary a)) seed = f a.
+Proof.
 intros.
 pose proof (coarbComplete' (coarbitrary max) (funToPosFun f)) as Hyp.
 inversion Hyp as [seed HSeed]; clear Hyp.
@@ -550,11 +565,18 @@ Variables A B : Type.
 Hypothesis choice : FunctionalChoice_on A RandomSeed.
 
 (* begin arbFunCorrect *)
-Theorem arbFunComplete `{CoArbitrary A, Arbitrary B} (max:A) (f:A-> B) (s:nat) :
-  s = Pos.to_nat (coarbitrary max) -> (semGenSize arbitrary s <--> setT) ->
-  exists seed, forall a, coarbLe a max -> run arbitrary s seed a = f a.
+Theorem arbFunComplete :
+  forall `{CA : CoArbitrary A, Arbitrary B}
+         {_ : CoArbitraryCorrect CA}
+         (max:A) (f:A-> B) (s:nat),
+    s = Pos.to_nat (coarbitrary max) ->
+    (semGenSize arbitrary s <--> setT) ->
+    exists seed, forall a,
+        coarbLe a max ->
+        run arbitrary s seed a = f a.
 (* end arbFunCorrect *)
 Proof.
+intros ?CA ?GA ?SA ?AA ?CC max f s.
 move=> eqsize semB.
 have/choice [fseed fseedP]: forall a, exists seed : RandomSeed, run arbitrary s seed = f a.
   by move => a; case: (semB (f a))=> _ /(_ I) [seed ?]; exists seed.
