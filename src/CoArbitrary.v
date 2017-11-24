@@ -16,7 +16,7 @@ Class CoArbitrary (A : Type) : Type :=
   {
     coarbitrary : A -> positive;
     coarbReverse : positive -> option A;
-    coarbCorrect : forall a, coarbReverse (coarbitrary a) = Some a
+    coarbCorrect : forall a p, p = coarbitrary a <-> coarbReverse p = Some a
   }.
 
 Instance coArbPos : CoArbitrary positive := 
@@ -24,11 +24,11 @@ Instance coArbPos : CoArbitrary positive :=
     coarbitrary x := x;
     coarbReverse x := Some x
   |}.
-Proof. auto. Qed.
+Proof. split; intro H; inversion H; reflexivity. Qed.
 
-Lemma nat_lemma :   forall a : nat,
-  Some (Init.Nat.pred (Pos.to_nat (Pos.of_nat (S a)))) = Some a.
-Admitted.
+Lemma nat_lemma: forall (a : nat) (p : positive),
+  Init.Nat.pred (Pos.to_nat p) = a <-> p = Pos.of_nat (S a).
+Proof. Admitted.
 
 Instance coArbNat : CoArbitrary nat :=
   {|
@@ -36,7 +36,14 @@ Instance coArbNat : CoArbitrary nat :=
     coarbReverse p := Some (Coq.Init.Peano.pred (Pos.to_nat p))
   |}.
 Proof.
-  apply nat_lemma.
+  split.
+  - intro H.
+    apply f_equal.
+    apply nat_lemma. auto.
+  - intro H.
+    apply nat_lemma.
+    inversion H.
+    auto.
 Qed.
 
 Instance coArbBool : CoArbitrary bool :=
@@ -49,7 +56,10 @@ Instance coArbBool : CoArbitrary bool :=
       | _ => None
       end
    |}.
-Proof. intros []; auto. Qed.
+Proof.
+  split; intro H; destruct a; repeat (destruct p; inversion H);
+    reflexivity.
+Qed.
 
 Local Open Scope positive.
 Fixpoint posToPathAux (p : positive) : SplitPath := 
@@ -520,8 +530,9 @@ apply coarbLePreservesLe in HLe.
 apply HCo in HLe; clear HCo.
 rewrite HLe; clear HLe.
 unfold funToPosFun.
-rewrite coarbCorrect.
-reflexivity.
+replace (coarbReverse (coarbitrary a)) with (Some a).
+- reflexivity.
+- symmetry. apply (proj1 (coarbCorrect a (coarbitrary a))). reflexivity.
 Qed.
 
 Instance genFun {A B : Type} `{_ : CoArbitrary A} `{_ : Gen B} : Gen (A -> B) :=
