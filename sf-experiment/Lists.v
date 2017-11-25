@@ -2,10 +2,11 @@
 
 From QuickChick Require Import QuickChick.
 Import QcDefaultNotation. Open Scope qc_scope.
-Import GenLow GenHigh.
+Import GenLow GenHigh Checker.
 Set Warnings "-extraction-opaque-accessed,-extraction".
 Require Import List ZArith.
 Import ListNotations.
+Import QcNotation.
 (* 
 Require Import mathcomp.ssreflect.ssreflect.
 From mathcomp Require Import seq ssreflect ssrbool ssrnat eqtype.
