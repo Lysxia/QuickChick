@@ -275,7 +275,7 @@ let compile_and_run where e : unit =
   perl_hack ();
 
   let ocamlbuild_cmd =
-    Printf.sprintf "ocamlbuild -package pringo %s %s.native"
+    Printf.sprintf "ocamlbuild -package QuickChick -cflag -rectypes %s %s.native"
       !ocamlbuild_args
       (Filename.chop_suffix temporary_file ".v") in
   run_and_show_output_on_failure
