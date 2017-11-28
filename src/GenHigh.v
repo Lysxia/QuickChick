@@ -20,7 +20,7 @@ Qed.
 
 (* High-level Generators *)
 
-Module Type GenHighInterface.
+Module Type GenHighImplInterface.
 
 Parameter liftGen : forall {A B : Type}, (A -> B) -> G A -> G B.
 Parameter liftGen2 : forall {A1 A2 B : Type},
@@ -42,6 +42,61 @@ Parameter backtrack : forall {A : Type}, list (nat * G (option A)) -> G (option 
 Parameter vectorOf : forall {A : Type}, nat -> G A -> G (list A).
 Parameter listOf : forall {A : Type}, G A -> G (list A).
 Parameter elements : forall {A : Type}, A -> list A -> G A.
+
+End GenHighImplInterface.
+
+Module Type QcNotationOf (GenHighImpl : GenHighImplInterface).
+
+Import GenHighImpl.
+
+Module QcDefaultNotation.
+
+Notation " 'elems' [ x ] " := (elements x (cons x nil)) : qc_scope.
+Notation " 'elems' [ x ; y ] " := (elements x (cons x (cons y nil))) : qc_scope.
+Notation " 'elems' [ x ; y ; .. ; z ] " :=
+  (elements x (cons x (cons y .. (cons z nil) ..))) : qc_scope.
+Notation " 'elems' ( x ;; l ) " :=
+  (elements x (cons x l)) (at level 1, no associativity) : qc_scope.
+
+Notation " 'oneOf' [ x ] " := (oneof x (cons x nil)) : qc_scope.
+Notation " 'oneOf' [ x ; y ] " := (oneof x (cons x (cons y nil))) : qc_scope.
+Notation " 'oneOf' [ x ; y ; .. ; z ] " :=
+  (oneof x (cons x (cons y .. (cons z nil) ..))) : qc_scope.
+Notation " 'oneOf' ( x ;; l ) " :=
+  (oneof x (cons x l))  (at level 1, no associativity) : qc_scope.
+
+Notation " 'freq' [ x ] " := (frequency x nil) : qc_scope.
+Notation " 'freq' [ ( n , x ) ; y ] " :=
+  (frequency x (cons (n, x) (cons y nil))) : qc_scope.
+Notation " 'freq' [ ( n , x ) ; y ; .. ; z ] " :=
+  (frequency x (cons (n, x) (cons y .. (cons z nil) ..))) : qc_scope.
+Notation " 'freq' ( ( n , x ) ;; l ) " :=
+  (frequency x (cons (n, x) l)) (at level 1, no associativity) : qc_scope.
+
+End QcDefaultNotation.
+
+Module QcDoNotation.
+
+Notation "'do!' X <- A ; B" :=
+  (bindGen A (fun X => B))
+  (at level 200, X ident, A at level 100, B at level 200).
+Notation "'do\'' X <- A ; B" :=
+  (bindGen' A (fun X H => B))
+  (at level 200, X ident, A at level 100, B at level 200).
+Notation "'doM!' X <- A ; B" :=
+  (bindGenOpt A (fun X => B))
+  (at level 200, X ident, A at level 100, B at level 200).
+
+End QcDoNotation.
+
+End QcNotationOf.
+
+Module Type GenHighSpec
+       (GenHighImpl : GenHighImplInterface)
+       (QcNotation : QcNotationOf GenHighImpl).
+
+Import GenHighImpl.
+Import QcNotation.
 
 (* Correctness for derived generators *)
 Parameter semLiftGen :
@@ -282,46 +337,6 @@ Parameter mergeBinds :
     semGen (bindGen ga (fun x => bindGen gb (f x))) <-->
     semGen (bindGen (genPair ga gb) (uncurry f)).
 
-Module QcDefaultNotation.
-
-Notation " 'elems' [ x ] " := (elements x (cons x nil)) : qc_scope.
-Notation " 'elems' [ x ; y ] " := (elements x (cons x (cons y nil))) : qc_scope.
-Notation " 'elems' [ x ; y ; .. ; z ] " :=
-  (elements x (cons x (cons y .. (cons z nil) ..))) : qc_scope.
-Notation " 'elems' ( x ;; l ) " :=
-  (elements x (cons x l)) (at level 1, no associativity) : qc_scope.
-
-Notation " 'oneOf' [ x ] " := (oneof x (cons x nil)) : qc_scope.
-Notation " 'oneOf' [ x ; y ] " := (oneof x (cons x (cons y nil))) : qc_scope.
-Notation " 'oneOf' [ x ; y ; .. ; z ] " :=
-  (oneof x (cons x (cons y .. (cons z nil) ..))) : qc_scope.
-Notation " 'oneOf' ( x ;; l ) " :=
-  (oneof x (cons x l))  (at level 1, no associativity) : qc_scope.
-
-Notation " 'freq' [ x ] " := (frequency x nil) : qc_scope.
-Notation " 'freq' [ ( n , x ) ; y ] " :=
-  (frequency x (cons (n, x) (cons y nil))) : qc_scope.
-Notation " 'freq' [ ( n , x ) ; y ; .. ; z ] " :=
-  (frequency x (cons (n, x) (cons y .. (cons z nil) ..))) : qc_scope.
-Notation " 'freq' ( ( n , x ) ;; l ) " :=
-  (frequency x (cons (n, x) l)) (at level 1, no associativity) : qc_scope.
-
-End QcDefaultNotation.
-
-Module QcDoNotation.
-
-Notation "'do!' X <- A ; B" :=
-  (bindGen A (fun X => B))
-  (at level 200, X ident, A at level 100, B at level 200).
-Notation "'do\'' X <- A ; B" :=
-  (bindGen' A (fun X H => B))
-  (at level 200, X ident, A at level 100, B at level 200).
-Notation "'doM!' X <- A ; B" :=
-  (bindGenOpt A (fun X => B))
-  (at level 200, X ident, A at level 100, B at level 200).
-
-End QcDoNotation.
-
 Import QcDefaultNotation. Open Scope qc_scope.
 
 Parameter semElemsSize : forall A (x : A) xs s,
@@ -336,9 +351,18 @@ Parameter semOneOfSize : forall A (g0 : G A) (gs : list (G A)) s,
 Parameter semOneOf : forall A (g0 : G A) (gs : list (G A)),
   semGen (oneOf (g0 ;; gs))  <--> \bigcup_(g in (g0 :: gs)) semGen g.
 
+End GenHighSpec.
+
+Module Type GenHighInterface.
+  Declare Module GenHighImpl: GenHighImplInterface.
+  Export GenHighImpl.
+  Include QcNotationOf GenHighImpl.
+  Include GenHighSpec GenHighImpl.
 End GenHighInterface.
 
 Module GenHigh : GenHighInterface.
+
+Module Export GenHighImpl <: GenHighImplInterface.
 
 Definition liftGen {A B} (f: A -> B) (a : G A)
 : G B := nosimpl
@@ -453,7 +477,10 @@ Definition elements {A : Type} (def : A) (l : list A) :=
   bindGen (choose (0, n - 1)) (fun n' =>
   returnGen (List.nth n' l def)).
 
-  
+End GenHighImpl.
+
+Include QcNotationOf GenHighImpl.
+
 Lemma semLiftGen {A B} (f: A -> B) (g: G A) :
   semGen (liftGen f g) <--> f @: semGen g.
 Proof.
@@ -1651,43 +1678,6 @@ Proof.
     inversion H; subst; clear H.
     exists a. split. by []. exists b. split; by [].
 Qed.    
-
-Module QcDefaultNotation.
-
-Notation " 'elems' [ x ] " := (elements x (cons x nil)) : qc_scope.
-Notation " 'elems' [ x ; y ] " := (elements x (cons x (cons y nil))) : qc_scope.
-Notation " 'elems' [ x ; y ; .. ; z ] " :=
-  (elements x (cons x (cons y .. (cons z nil) ..))) : qc_scope.
-Notation " 'elems' ( x ;; l ) " :=
-  (elements x (cons x l)) (at level 1, no associativity) : qc_scope.
-
-Notation " 'oneOf' [ x ] " := (oneof x (cons x nil)) : qc_scope.
-Notation " 'oneOf' [ x ; y ] " := (oneof x (cons x (cons y nil))) : qc_scope.
-Notation " 'oneOf' [ x ; y ; .. ; z ] " :=
-  (oneof x (cons x (cons y .. (cons z nil) ..))) : qc_scope.
-Notation " 'oneOf' ( x ;; l ) " :=
-  (oneof x (cons x l))  (at level 1, no associativity) : qc_scope.
-
-Notation " 'freq' [ x ] " := (frequency x nil) : qc_scope.
-Notation " 'freq' [ ( n , x ) ; y ] " :=
-  (frequency x (cons (n, x) (cons y nil))) : qc_scope.
-Notation " 'freq' [ ( n , x ) ; y ; .. ; z ] " :=
-  (frequency x (cons (n, x) (cons y .. (cons z nil) ..))) : qc_scope.
-Notation " 'freq' ( ( n , x ) ;; l ) " :=
-  (frequency x (cons (n, x) l)) (at level 1, no associativity) : qc_scope.
-
-End QcDefaultNotation.
-
-Module QcDoNotation.
-
-Notation "'do!' X <- A ; B" :=
-  (bindGen A (fun X => B))
-  (at level 200, X ident, A at level 100, B at level 200).
-Notation "'doM!' X <- A ; B" :=
-  (bindGenOpt A (fun X => B))
-  (at level 200, X ident, A at level 100, B at level 200).
-
-End QcDoNotation.
 
 Import QcDefaultNotation. Open Scope qc_scope.
 
