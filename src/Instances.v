@@ -16,8 +16,11 @@ Import QcDefaultNotation.
 Set Bullet Behavior "Strict Subproofs".
 
 (** Basic generator instances *)
-Global Instance genBoolSized : GenSized bool := 
-  {| arbitrarySized x := choose (false, true) |}.
+Instance genBool : Gen bool :=
+  {| arbitrary := flipCoin |}.
+
+Instance genBoolSized : GenSized bool :=
+  {| arbitrarySized := fun _ => arbitrary |}.
 
 Instance genNatSized : GenSized nat := 
   {| arbitrarySized x := choose (0,x) |}.
@@ -192,10 +195,9 @@ Qed.
 
 Instance boolSizeMonotonic : SizeMonotonic (@arbitrary bool _).
 Proof.
-  unfold arbitrary, GenOfGenSized.
-  eapply sizedSizeMonotonic; unfold arbitrarySized, genBoolSized.
-  intros _. eauto with typeclass_instances.
-  constructor. intros. eapply subset_refl.
+  simpl; constructor; intros.
+  do 2 rewrite semFlipCoinSize.
+  apply subset_refl.
 Qed.
 
 Instance boolSizedMonotonic : SizedMonotonic (@arbitrarySized bool _).
@@ -203,25 +205,16 @@ Proof.
   constructor. intros. eapply subset_refl.
 Qed.
 
-Instance boolCorrect : Correct bool arbitrary.
-Proof.
-  constructor. unfold arbitrary, GenOfGenSized.
-  rewrite semSized.
-  unfold arbitrarySized, genBoolSized.
-  intros x. split; intros H; try now constructor.
-  exists 0. split. constructor.
-  eapply semChooseSize; eauto.
-  destruct x; eauto.
-Qed.  
-
 Lemma arbBool_correct:
   semGen arbitrary <--> [set: bool].
 Proof.
-rewrite /arbitrary /arbitrarySized /genBoolSized /=.
-rewrite semSized => n; split=> // _.
-exists n; split=> //.
-apply semChooseSize => //=; case n => //.
+  rewrite <- unsized_alt_def with (s := 0).
+  apply semFlipCoinSize.
+  auto with typeclass_instances.
 Qed.
+
+Instance boolCorrect : Correct bool arbitrary.
+Proof. constructor. apply arbBool_correct. Qed.
 
 Lemma arbNat_correct:
   semGen arbitrary <--> [set: nat].
@@ -249,10 +242,7 @@ Qed.
 
 Lemma arbBool_correctSize s :
   semGenSize arbitrary s <--> [set: bool].
-Proof.
-rewrite /arbitrary //=.
-rewrite semSizedSize semChooseSize //; split=> /RandomQC.leq _ //=; case a=> //=.
-Qed.
+Proof. apply semFlipCoinSize. Qed.
 
 Lemma arbNat_correctSize s :
   semGenSize arbitrary s <--> [set n : nat | (n <= s)%coq_nat].

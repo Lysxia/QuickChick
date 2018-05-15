@@ -41,10 +41,10 @@ Module ConsistencyCheck : QuickChickSig.
   Definition OrdNat := OrdNat.
   Definition OrdZ := OrdZ.
 
-  Definition ChooseBool := ChooseBool.
   Definition ChooseNat := ChooseNat.
   Definition ChooseZ := ChooseZ.
 
+  Definition flipCoin := flipCoin.
   Definition choose := @choose.
 
   Module QcDefaultNotation.

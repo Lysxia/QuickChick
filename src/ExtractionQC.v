@@ -31,7 +31,7 @@ Extract Constant RandomSeed   => "PureSplitMix.t".
 Extract Constant randomSplit  => "PureSplitMix.split".
 Extract Constant mkRandomSeed =>
   "(fun x -> PureSplitMix.of_seed (Int64.of_int x))".
-Extract Constant randomRBool => "(fun _ r -> PureSplitMix.bool r)".
+Extract Constant randomBool => "(fun r -> PureSplitMix.bool r)".
 Extract Constant randomNat => "PureSplitMix.int".
 Extract Constant randomInt => "PureSplitMix.int".
 Extract Constant newRandomSeed => "(PureSplitMix.auto_seed ())".
