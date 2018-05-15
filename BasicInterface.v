@@ -144,9 +144,11 @@ Declare Instance OrdZ    : OrdType Z.
   }.
 *)
 
-Declare Instance ChooseBool : ChoosableFromInterval bool.
 Declare Instance ChooseNat : ChoosableFromInterval nat. 
 Declare Instance ChooseZ : ChoosableFromInterval Z.
+
+(* Generate a random boolean. *)
+Parameter flipCoin : G bool.
 
 (* Generate a value between two extremes, inclusive. 
    Causes a runtime error if the values are not ordered. *)

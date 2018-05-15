@@ -33,7 +33,7 @@ Extract Constant randomNext   => "(fun r -> failwith ""unimplemented"")".
 Extract Constant randomSplit  => "QuickChickLib.PRNG.split".
 Extract Constant mkRandomSeed =>
   "(fun x -> QuickChickLib.PRNG.of_seed (Int64.of_int x))".
-Extract Constant randomRBool => "(fun _ r -> QuickChickLib.PRNG.bool r, r)".
+Extract Constant randomBool => "(fun r -> QuickChickLib.PRNG.bool r)".
 Extract Constant randomRNat  => "QuickChickLib.PRNG.random_int".
 Extract Constant randomRInt  => "QuickChickLib.PRNG.random_int".
 Extract Constant newRandomSeed => "(QuickChickLib.PRNG.auto_seed ())".

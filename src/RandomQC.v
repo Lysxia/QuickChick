@@ -10,8 +10,7 @@ Require Import ZArith.
 Axiom RandomSeed : Type.
 Axiom randomSeed_inhabited : inhabited RandomSeed.
 
-Axiom randomNext     : RandomSeed -> Z * RandomSeed.
-Axiom randomGenRange : RandomSeed -> Z * Z.
+Axiom randomNext     : RandomSeed -> Z.
 Axiom mkRandomSeed   : Z          -> RandomSeed.
 Axiom newRandomSeed  : RandomSeed.
 
@@ -638,21 +637,19 @@ Qed.
 
 (* Primitive generator combinators and some basic soundness
    assumptions about them *)
-Axiom randomRBool : bool * bool -> RandomSeed -> bool * RandomSeed.
-Axiom randomRBoolCorrect :
-  forall b b1 b2, implb b1 b2 ->
-    (implb b1 b && implb b b2 <->
-    exists seed, (fst (randomRBool (b1, b2) seed)) = b).
-Axiom randomRNat  : nat  * nat -> RandomSeed -> nat * RandomSeed.
+Axiom randomBool : RandomSeed -> bool.
+Axiom randomBoolCorrect :
+  forall b, exists seed, randomBool seed = b.
+Axiom randomRNat  : nat  * nat -> RandomSeed -> nat.
 Axiom ramdomRNatCorrect:
   forall n n1 n2, n1 <= n2 ->
     (n1 <= n <= n2 <->
-    exists seed, (fst (randomRNat (n1, n2) seed)) = n).
-Axiom randomRInt  : Z * Z    -> RandomSeed -> Z * RandomSeed.
+    exists seed, (randomRNat (n1, n2) seed) = n).
+Axiom randomRInt  : Z * Z    -> RandomSeed -> Z.
 Axiom ramdomRIntCorrect:
   forall z z1 z2, Z.leb z1 z2 ->
     (Z.leb z1 z && Z.leb z z2 <->
-    exists seed, (fst (randomRInt (z1, z2) seed)) = z).
+    exists seed, (randomRInt (z1, z2) seed) = z).
 
 
 (* A small experiment showing that infinite random trees
@@ -724,17 +721,11 @@ Qed.
 Class ChoosableFromInterval (A : Type)  :=
   {
     super :> OrdType A;
-    randomR : A * A -> RandomSeed -> A * RandomSeed;
+    randomR : A * A -> RandomSeed -> A;
     randomRCorrect :
       forall (a a1 a2 : A), leq a1 a2 ->
       (leq a1 a && leq a a2 <->
-       exists seed, fst (randomR (a1, a2) seed) = a)
-  }.
-
-Program Instance ChooseBool : ChoosableFromInterval bool :=
-  {
-    randomR := randomRBool;
-    randomRCorrect := randomRBoolCorrect
+       exists seed, randomR (a1, a2) seed = a)
   }.
 
 Instance ChooseNat : ChoosableFromInterval nat :=
