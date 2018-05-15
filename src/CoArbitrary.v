@@ -7,14 +7,16 @@ Import GenLow.
 
 Import ListNotations.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 (* LL: TODO: Add proof obligation that the result paths be prefix free? *)
 Class CoArbitrary (A : Type) : Type :=
   {
     coarbitrary : A -> positive;
+  }.
+
+Class CoArbitraryCorrect (A : Type) `{CoArbitrary A} : Type :=
+  {
     coarbReverse : positive -> option A;
     coarbCorrect : forall a, coarbReverse (coarbitrary a) = Some a
   }.
@@ -22,33 +24,42 @@ Class CoArbitrary (A : Type) : Type :=
 Instance coArbPos : CoArbitrary positive := 
   {|
     coarbitrary x := x;
-    coarbReverse x := Some x
   |}.
-Proof. auto. Qed.
 
-Lemma nat_lemma :   forall a : nat,
-  Some (Init.Nat.pred (Pos.to_nat (Pos.of_nat (S a)))) = Some a.
-Admitted.
+Instance coArbPosCorrect : CoArbitraryCorrect positive :=
+  {
+    coarbReverse x := Some x
+  }.
+Proof. auto. Qed.
 
 Instance coArbNat : CoArbitrary nat :=
   {|
-    coarbitrary x := Pos.of_nat (S x);
-    coarbReverse p := Some (Coq.Init.Peano.pred (Pos.to_nat p))
+    coarbitrary x := Pos.of_succ_nat x;
   |}.
+
+Instance coArbNatCorrect : CoArbitraryCorrect nat :=
+  {
+    coarbReverse p := Some (Coq.Init.Peano.pred (Pos.to_nat p))
+  }.
 Proof.
-  apply nat_lemma.
+  intros; simpl. f_equal.
+  apply SuccNat2Pos.pred_id.
 Qed.
 
 Instance coArbBool : CoArbitrary bool :=
   {|
     coarbitrary x := if x then 1%positive else 2%positive;
+  |}.
+
+Instance coArbBoolCorrect : CoArbitraryCorrect bool :=
+  {
     coarbReverse x :=
       match x with
       | 2%positive => Some false
       | 1%positive => Some true
       | _ => None
       end
-   |}.
+  }.
 Proof. intros []; auto. Qed.
 
 Local Open Scope positive.
@@ -58,6 +69,11 @@ Fixpoint posToPathAux (p : positive) : SplitPath :=
     | xI p' => posToPathAux p' ++ [Left; Right]
     | xO p' => posToPathAux p' ++ [Left; Left ]
   end.
+
+Section PathLemmas.
+
+Set Implicit Arguments.
+Unset Strict Implicit.
 
 Definition posToPath (p : positive) : SplitPath := posToPathAux p ++ [Right].
 
@@ -491,8 +507,9 @@ rewrite H1.
   auto.
 Qed.
 
-Definition funToPosFun {A : Type} `{_ : CoArbitrary A} (f : A -> RandomSeed) (p : positive)
-: RandomSeed :=
+Definition funToPosFun {A : Type} `{_ : CoArbitraryCorrect A}
+           (f : A -> RandomSeed) (p : positive)
+  : RandomSeed :=
   match coarbReverse p with 
     | Some a => f a
     | None   => newRandomSeed
@@ -506,10 +523,12 @@ Lemma coarbLePreservesLe : forall {A : Type} `{_ : CoArbitrary A} (x y : A),
 by [].
 Qed.
 
-Theorem coarbComplete : forall {A : Type} `{_ : CoArbitrary A} (max : A)
-                               (f : A -> RandomSeed),
-                          exists seed, forall a, coarbLe a max ->
-                                          varySeed (posToPath (coarbitrary a)) seed = f a.
+Theorem coarbComplete :
+  forall {A : Type} `{CoArbitraryCorrect A} (max : A)
+         (f : A -> RandomSeed),
+  exists seed, forall a,
+      coarbLe a max ->
+      varySeed (posToPath (coarbitrary a)) seed = f a.
 intros.
 pose proof (coarbComplete' (coarbitrary max) (funToPosFun f)) as Hyp.
 inversion Hyp as [seed HSeed]; clear Hyp.
@@ -523,6 +542,8 @@ unfold funToPosFun.
 rewrite coarbCorrect.
 reflexivity.
 Qed.
+
+End PathLemmas.
 
 Instance genFun {A B : Type} `{_ : CoArbitrary A} `{_ : Gen B} : Gen (A -> B) :=
   {|
@@ -539,7 +560,7 @@ Variables A B : Type.
 Hypothesis choice : FunctionalChoice_on A RandomSeed.
 
 (* begin arbFunCorrect *)
-Theorem arbFunComplete `{CoArbitrary A, Arbitrary B} (max:A) (f:A-> B) (s:nat) :
+Theorem arbFunComplete `{CoArbitraryCorrect A, Arbitrary B} (max:A) (f:A-> B) (s:nat) :
   s = Pos.to_nat (coarbitrary max) -> (semGenSize arbitrary s <--> setT) ->
   exists seed, forall a, coarbLe a max -> run arbitrary s seed a = f a.
 (* end arbFunCorrect *)
