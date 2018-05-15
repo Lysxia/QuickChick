@@ -57,8 +57,9 @@ let link_files = []
 
 (* TODO: in Coq 8.5, fetch OCaml's path from Coq's configure *)
 (* FIX: There is probably a more elegant place to put this flag! *)
-let ocamlopt = "ocamlopt -unsafe-string"
-let ocamlc = "ocamlc -unsafe-string"
+let mk_ocaml = Printf.sprintf "ocamlfind %s -package pure-splitmix -linkpkg -unsafe-string"
+let ocamlopt = mk_ocaml "ocamlopt"
+let ocamlc = mk_ocaml "ocamlc"
 
 let comp_ml_cmd fn out =
   let path = Lazy.force path in

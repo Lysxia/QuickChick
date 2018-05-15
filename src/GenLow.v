@@ -535,7 +535,7 @@ Module GenLow : GenLowInterface.
     end.
   
   Definition choose {A : Type} `{ChoosableFromInterval A} (range : A * A) : G A :=
-    MkGen (fun _ r => fst (randomR range r)).
+    MkGen (fun _ r => randomR range r).
   
   Definition sample (A : Type) (g : G A) : list A :=
     match g with
