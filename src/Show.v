@@ -9,10 +9,14 @@ Definition newline := String "010" ""%string.
 Require Extraction.
 Axiom show_nat  : nat -> string.
 Extract Constant show_nat => "Prelude.show".
-Axiom show_bool : bool -> string.
-Extract Constant show_bool => "Prelude.show".
 Axiom show_int  : Z -> string.
 Extract Constant show_int => "Prelude.show".
+
+Definition show_bool (b : bool) : string :=
+  match b with
+  | true => "true"
+  | false => "false"
+  end.
 
 Local Open Scope string.
 Class Show (A : Type) : Type :=

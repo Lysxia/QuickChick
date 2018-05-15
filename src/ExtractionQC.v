@@ -14,36 +14,29 @@ Require Import ExtrOcamlZInt.
 Extraction Blacklist String List.
 
 Extract Constant show_nat =>
-  "(fun i ->    
+  "(fun i ->
   let s = string_of_int i in
-  let rec copy acc i =
-    if i < 0 then acc else copy (s.[i] :: acc) (i-1)
-  in copy [] (String.length s - 1))".
-Extract Constant show_bool =>
-  "(fun i ->    
-  let s = string_of_bool i in
   let rec copy acc i =
     if i < 0 then acc else copy (s.[i] :: acc) (i-1)
   in copy [] (String.length s - 1))".
 
 Extract Constant show_int =>
-  "(fun i ->    
+  "(fun i ->
   let s = string_of_int i in
   let rec copy acc i =
     if i < 0 then acc else copy (s.[i] :: acc) (i-1)
   in copy [] (String.length s - 1))".
 
-Extract Constant RandomSeed   => "Random.State.t".
-Extract Constant randomNext   => "(fun r -> Random.State.bits r, r)".
+Extract Constant RandomSeed   => "QuickChickLib.PRNG.t".
+Extract Constant randomNext   => "(fun r -> failwith ""unimplemented"")".
 (* Extract Constant rndGenRange => "SR.genRange".*)
-Extract Constant randomSplit  => "(fun x -> (x,x))".
-Extract Constant mkRandomSeed => "(fun x -> Random.init x; Random.get_state())".
-Extract Constant randomRNat  =>
-  "(fun (x,y) r -> if y < x then failwith ""choose called with unordered arguments"" else  (x + (Random.State.int r (y - x + 1)), r))".
-Extract Constant randomRBool => "(fun _ r -> Random.State.bool r, r)".
-Extract Constant randomRInt  =>
-  "(fun (x,y) r -> if y < x then failwith ""choose called with unordered arguments"" else  (x + (Random.State.int r (y - x + 1)), r))".
-Extract Constant newRandomSeed => "(Random.State.make_self_init ())".
+Extract Constant randomSplit  => "QuickChickLib.PRNG.split".
+Extract Constant mkRandomSeed =>
+  "(fun x -> QuickChickLib.PRNG.of_seed (Int64.of_int x))".
+Extract Constant randomRBool => "(fun _ r -> QuickChickLib.PRNG.bool r, r)".
+Extract Constant randomRNat  => "QuickChickLib.PRNG.random_int".
+Extract Constant randomRInt  => "QuickChickLib.PRNG.random_int".
+Extract Constant newRandomSeed => "(QuickChickLib.PRNG.auto_seed ())".
 
 Extract Inductive Lazy => "Lazy.t" [lazy].
 Extract Constant force => "Lazy.force".

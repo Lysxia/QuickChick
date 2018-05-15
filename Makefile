@@ -1,5 +1,10 @@
+NAME=coq-quickchick
+
 V=@
-.PHONY: plugin install install-plugin clean quickChickTool
+.PHONY: plugin install install-plugin clean quickChickTool quickChickLib
+.PHONY: uninstall-qclib
+
+OCAMLBUILD=ocamlbuild -use-ocamlfind
 
 QCTOOL_DIR=quickChickTool
 QCTOOL_EXE=quickChickTool.byte
@@ -7,6 +12,17 @@ QCTOOL_SRC=$(QCTOOL_DIR)/quickChickTool.ml \
 		   $(QCTOOL_DIR)/quickChickToolTypes.ml \
 		   $(QCTOOL_DIR)/quickChickToolLexer.mll \
 		   $(QCTOOL_DIR)/quickChickToolParser.mly
+
+QCLIB_DIR=quickChickLib
+QCLIB_DEPS=-pkg pure-splitmix
+QCLIB_TARGETS=quickChickLib.cmxa \
+			  quickChickLib.cma \
+			  quickChickLib.a
+QCLIB_INSTALL_TARGETS = $(addprefix _build/, $(QCLIB_TARGETS))
+QCLIB_INSTALL_TARGETS += \
+	$(shell find _build/$(QCLIB_DIR)/ \
+	-name '*.cmi' -or -name '*.cmo' -or -name '*.o' -or \
+	-name '*.mli' -or -name '*.cmx')
 
 # Here is a hack to make $(eval $(shell work
 # (copied from coq_makefile generated stuff):
@@ -18,10 +34,14 @@ endef
 includecmdwithout@ = $(eval $(subst @,$(donewline),$(shell { $(1) | tr -d '\r' | tr '\n' '@'; })))
 $(call includecmdwithout@,$(COQBIN)coqtop -config)
 
-all: plugin documentation-check quickChickTool
+all: plugin documentation-check quickChickLib quickChickTool
 
 plugin: Makefile.coq 
 	$(MAKE) -f Makefile.coq 
+
+# This dependency forces one ocamlbuild invocation to run at a time.
+quickChickLib: quickChickTool
+	$(OCAMLBUILD) $(QCLIB_DEPS) -I $(QCLIB_DIR) $(QCLIB_TARGETS)
 
 documentation-check: plugin
 	coqc -R src QuickChick -I src BasicInterface.v
@@ -33,6 +53,7 @@ install: all
 	$(V)$(MAKE) -f Makefile.coq install > $(TEMPFILE)
 # Manually copying the remaining files
 	$(V)cp $(QCTOOL_EXE) $(shell opam config var bin)/quickChick
+	ocamlfind install $(NAME) META $(QCLIB_INSTALL_TARGETS)
 #	 $(V)cp src/quickChickLib.cmx $(COQLIB)/user-contrib/QuickChick
 #	 $(V)cp src/quickChickLib.o $(COQLIB)/user-contrib/QuickChick
 
@@ -42,6 +63,9 @@ install-plugin: Makefile.coq
 uninstall:
 	$(V)if [ -e Makefile.coq ]; then $(MAKE) -f Makefile.coq uninstall; fi
 	$(RM) $(shell which quickChick | grep opam)
+
+uninstall-qclib:
+	ocamlfind remove $(NAME)
 
 src/%.cmo : src/%.ml
 	ocamlc -I src -c $<

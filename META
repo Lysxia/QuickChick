@@ -1,0 +1,11 @@
+description = "Property-based testing in Coq"
+version = "1.1.0"
+
+package "lib" (
+  description = "QuickChick runtime library"
+  version = "1.1.0"
+
+  requires = "pure-splitmix"
+  archive(byte)    = "quickChickLib.cma"
+  archive(native)  = "quickChickLib.cmxa"
+)
