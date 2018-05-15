@@ -63,6 +63,7 @@ Module Type GenLowInterface.
                                           G (option A).
   Parameter suchThatMaybeOpt : forall {A : Type}, G (option A) -> (A -> bool) ->
                                              G (option A).
+  Parameter flipCoin : G bool.
   Parameter choose : forall {A : Type} `{ChoosableFromInterval A}, (A * A) -> G A.
   Parameter sample : forall {A : Type}, G A -> list A.
 
@@ -290,6 +291,11 @@ Module Type GenLowInterface.
     forall A `{ChoosableFromInterval A} (a1 a2 : A),
       RandomQC.leq a1 a2 ->
       (semGen (choose (a1,a2)) <--> [set a | RandomQC.leq a1 a && RandomQC.leq a a2]).
+
+  Parameter semFlipCoinSize :
+    forall size, semGenSize flipCoin size <--> [set: bool].
+
+  Declare Instance flipCoinUnsized : Unsized flipCoin.
 
   Parameter semChooseSize :
     forall A `{ChoosableFromInterval A} (a1 a2 : A),
@@ -533,7 +539,9 @@ Module GenLow : GenLowInterface.
       | O => List.rev (cons O acc)
       | S n' => createRange n' (cons n acc)
     end.
-  
+
+  Definition flipCoin : G bool := MkGen (fun _ => randomBool).
+
   Definition choose {A : Type} `{ChoosableFromInterval A} (range : A * A) : G A :=
     MkGen (fun _ r => randomR range r).
   
@@ -1031,7 +1039,18 @@ Module GenLow : GenLowInterface.
     rewrite !semFmapSize. move => b.
     move => [a [H1 <-]]; eexists; split; eauto => //; eapply monotonic; eauto.
   Qed.
-  
+
+  Lemma semFlipCoinSize :
+    forall size, semGenSize flipCoin size <--> [set: bool].
+  Proof.
+    intros size b; split.
+    - constructor.
+    - intro; destruct b; apply randomBoolCorrect.
+  Qed.
+
+  Instance flipCoinUnsized : Unsized flipCoin.
+  Proof. by []. Qed.
+
   Lemma semChooseSize A `{ChoosableFromInterval A} (a1 a2 : A) :
     RandomQC.leq a1 a2 ->
     forall size, semGenSize (choose (a1,a2)) size <-->

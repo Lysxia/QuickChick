@@ -11,6 +11,10 @@ Require Peano.
 Axiom RandomSeed : Type.
 Axiom randomSeed_inhabited : inhabited RandomSeed.
 
+<<<<<<< HEAD
+=======
+Axiom randomNext     : RandomSeed -> Z.
+>>>>>>> 12ed715... Simplify bool generator
 Axiom mkRandomSeed   : Z          -> RandomSeed.
 Axiom newRandomSeed  : RandomSeed.
 
@@ -634,18 +638,17 @@ pose proof (pathAgreesOnSubTree st (mkSeedTree rst) p (f p)) as Hyp.
 auto.
 Qed.
 
+(* Primitive generator combinators and some basic soundness
+   assumptions about them *)
+
 Set Bullet Behavior "Strict Subproofs".
 
 Section RangeGens.
 Import Peano.
 
-(* Primitive generator combinators and some basic soundness
-   assumptions about them *)
-Axiom randomRBool : bool * bool -> RandomSeed -> bool.
-Axiom randomRBoolCorrect :
-  forall b b1 b2, implb b1 b2 ->
-    (implb b1 b && implb b b2 <->
-    exists seed, randomRBool (b1, b2) seed = b).
+Axiom randomBool : RandomSeed -> bool.
+Axiom randomBoolCorrect :
+  forall b, exists seed, randomBool seed = b.
 
 (* Generate a number in [\[0, n)]. *)
 Axiom randomNat : RandomSeed -> nat -> nat.
@@ -810,12 +813,15 @@ Class ChoosableFromInterval (A : Type)  :=
       forall (a a1 a2 : A), leq a1 a2 ->
       (leq a1 a && leq a a2 <->
        exists seed, randomR (a1, a2) seed = a)
+<<<<<<< HEAD
   }.
 
 Program Instance ChooseBool : ChoosableFromInterval bool :=
   {
     randomR := randomRBool;
     randomRCorrect := randomRBoolCorrect
+=======
+>>>>>>> 12ed715... Simplify bool generator
   }.
 
 Instance ChooseNat : ChoosableFromInterval nat :=
@@ -827,5 +833,9 @@ Instance ChooseNat : ChoosableFromInterval nat :=
 Instance ChooseZ : ChoosableFromInterval Z :=
   {
     randomR := randomRInt;
+<<<<<<< HEAD
     randomRCorrect := randomRIntCorrect_
+=======
+    randomRCorrect := ramdomRIntCorrect
+>>>>>>> 12ed715... Simplify bool generator
   }.
