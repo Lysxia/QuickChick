@@ -24,6 +24,28 @@ Definition perturb_seed {A} `{CoArbitrary A} :
   A -> RandomSeed -> RandomSeed :=
   coarbitrary.
 
+(* The main motivation for [CoArbitrary]: to generate functions. *)
+Instance Gen_fun {A B : Type}
+         `{CoArbitrary A} `{Gen B} : Gen (A -> B) :=
+  {| arbitrary := GenLow.reallyUnsafePromote
+       (fun a => GenLow.vary (coarbitrary a) arbitrary);
+  |}.
+
+Instance ShrinkNil_fun {A : Type} {F : A -> Type} :
+  Shrink (forall a, F a) :=
+  {| shrink x := nil |}.
+
+(* Interestingly, this seems to work with dependent functions. *)
+(* TODO: is this safe and does it entirely supersed Gen_fun?
+   Type inference issues. *)
+Instance Gen_forall {A : Type} {F : A -> Type}
+       `{CoArbitrary A} `{forall a, Gen (F a)} :
+  Gen (forall a, F a) :=
+  {| arbitrary :=
+      GenLow.reallyUnsafePromote'
+        (fun a => GenLow.vary (coarbitrary a) arbitrary);
+  |}.
+
 (* For every finite assignment of values of A to seeds, there
    is a seed that coincides with that assignment. Defining the
    assignment as the restriction of a function [f] to a finite
@@ -1241,15 +1263,6 @@ reflexivity.
 Qed.
 
 End PathLemmas.
-
-Instance genFun {A B : Type} `{_ : CoArbitrary A} `{_ : Gen B} : Gen (A -> B) :=
-  {|
-    arbitrary := 
-      reallyUnsafePromote (fun a => variant (posToPath (coarbitrary a)) arbitrary);
-  |}.
-
-Instance shrinkFunNil {A B : Type} : Shrink (A -> B) :=
-  {| shrink x := nil |}.
 
 Section arbFun_completeness.
 

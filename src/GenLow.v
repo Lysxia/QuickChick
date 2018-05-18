@@ -69,8 +69,13 @@ Module Type GenLowInterface.
 
 
   (* LL: The abstraction barrier is annoying :D *)
+  Parameter vary :
+    forall {A : Type}, (RandomSeed -> RandomSeed) -> G A -> G A.
   Parameter variant : forall {A : Type}, SplitPath -> G A -> G A.
   Parameter reallyUnsafePromote : forall {r A:Type}, (r -> G A) -> G (r -> A).
+  Parameter reallyUnsafePromote' :
+    forall {A : Type} {F : A -> Type},
+      (forall a, G (F a)) -> G (forall a, F a).
 
   Parameter promoteVariant : forall {A B : Type} (a : A) (f : A -> SplitPath) (g : G B) size 
                                (r r1 r2 : RandomSeed),
@@ -554,7 +559,13 @@ Module GenLow : GenLowInterface.
     end.
   
   (* LL : Things that need to be in GenLow because of MkGen *)
-  
+
+  Definition vary {A : Type}
+             (p : RandomSeed -> RandomSeed) (g : G A) : G A :=
+    match g with
+    | MkGen f => MkGen (fun n r => f n (p r))
+    end.
+
   Definition variant {A : Type} (p : SplitPath) (g : G A) : G A := 
     match g with 
       | MkGen f => MkGen (fun n r => f n (varySeed p r))
@@ -566,6 +577,13 @@ Module GenLow : GenLowInterface.
   Definition reallyUnsafePromote {r A : Type} (m : r -> G A) : G (r -> A) :=
     (bindGen reallyUnsafeDelay (fun eval => 
                                   returnGen (fun r => eval (m r)))).
+
+  Definition reallyUnsafePromote' {A} {F : A -> Type}
+             (m : forall a, G (F a)) : G (forall a, F a) :=
+    MkGen (fun r n a =>
+             match m a with
+             | MkGen f => f r n
+             end).
 
   (* End Things *)
 
