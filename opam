@@ -19,6 +19,7 @@ depends: [
   "ocamlbuild"
   "ocamlfind"
   "pure-splitmix"
+  "coq-simple-io"
 ]
 available: [ ocaml-version >= "4.04.0" ]
 
