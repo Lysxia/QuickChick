@@ -67,7 +67,7 @@ Module Import TreeCorrectness.
 (* 50% shorter name. *)
 Definition path := SplitPath.
 
-Definition dir {A} d (f g : A) :=
+Definition dir {A} d (f g : A) : A :=
   match d with
   | Left => f
   | Right => g
@@ -166,119 +166,128 @@ Qed.
 (* Paths are locations in trees.
    Note that trees may be infinite. *)
 CoInductive tree (A : Type) : Type :=
-| Split : tree A -> tree A -> tree A
 | Leaf : A -> tree A
-| Empty : tree A.
+| Unguard : tree' A -> tree A
 
-Arguments Split {A}.
-Arguments Leaf {A}.
-Arguments Empty {A}.
+(* Subtype of "guarded trees". *)
+with tree' (A : Type) : Type :=
+| Empty' : tree' A
+| Fork' : (SplitDirection -> tree A) -> tree' A.
 
-(* Useful to rewrite cofixpoints in proofs. *)
-Lemma match_tree {A} (t : tree A) : t = match t with
-                                        | Split t1 t2 => Split t1 t2
-                                        | Leaf a => Leaf a
-                                        | Empty => Empty
-                                        end.
-Proof. destruct t; auto. Qed.
+Arguments Leaf {A} _.
+Arguments Unguard {A} _.
+Arguments Empty' {A}.
+Arguments Fork' {A} _.
 
-Definition map_tree {A B} (f : A -> B) :=
-  cofix map t :=
+Definition Empty {A : Type} : tree A := Unguard Empty'.
+
+Definition Split' {A : Type} (t1 t2 : tree A) : tree' A :=
+  Fork' (fun d => dir d t1 t2).
+
+Definition Split {A : Type} (t1 t2 : tree A) : tree A :=
+  Unguard (Split' t1 t2).
+
+Definition bind_tree {A B}
+           (t : tree A) (k : A -> tree B) : tree B :=
+  let cofix sub t :=
     match t with
-    | Split t1 t2 => Split (map t1) (map t2)
-    | Leaf a => Leaf (f a)
-    | Empty => Empty
-    end.
+    | Leaf a => k a
+    | Unguard t' => Unguard
+      match t' with
+      | Empty' => Empty'
+      | Fork' s => Fork' (fun d => sub (s d))
+      end
+    end in
+  sub t.
 
-(* The monadic interface is useful for composite types
-   (pairs, sums, etc.) *)
-Definition bind_tree {A B} (t : tree A) (k : A -> tree B) : tree B :=
-  (cofix sub t :=
-     match t with
-     | Split t1 t2 => Split (sub t1) (sub t2)
-     | Leaf a => k a
-     | Empty => Empty
-     end) t.
+Definition bind_tree_guarded {A B}
+           (t : tree A) (k : A -> tree' B) : tree B :=
+  bind_tree t (fun a => Unguard (k a)).
+
+Definition map_tree {A B} (f : A -> B) (t : tree A) :=
+  bind_tree t (fun a => Leaf (f a)).
 
 (* A path [p] points to a value [a] in a tree [t]. *)
-Fixpoint In_tree {A} (t : tree A) (a : A) (p : path) :=
-  match p, t with
+Fixpoint In_tree {A}
+         (a : A) (t : tree A) (p : path) : Prop :=
+  match p, t return Prop with
   | [], Leaf a' => a' = a
-  | b :: p', Split t1 t2 =>
-    In_tree (dir b t1 t2) a p'
+  | d :: p', Unguard (Fork' s) =>
+    In_tree a (s d) p'
   | _, _ => False
   end.
-
-Lemma In_tree_map {A B}
-      (f : A -> B) (t : tree A) (a : A) (p : path) :
-  In_tree t a p -> In_tree (map_tree f t) (f a) p.
-Proof.
-  generalize dependent t.
-  induction p as [ | [] p' ];
-    intros [] Ht;
-    try destruct Ht;
-    try reflexivity;
-    simpl; auto.
-Qed.
 
 Lemma In_tree_bind {A B}
       (t : tree A) (k : A -> tree B)
       (a : A) (pa : path) (b : B) (pb : path) :
-  In_tree t a pa -> In_tree (k a) b pb ->
-  In_tree (bind_tree t k) b (pa ++ pb).
+  In_tree a t pa -> In_tree b (k a) pb ->
+  In_tree b (bind_tree t k) (pa ++ pb).
 Proof.
   generalize dependent t.
-  induction pa as [ | [] pa' ]; intros [] Ht Hk;
+  induction pa as [ | d pa' ]; intros [ | [ | s ] ] Ht Hk;
     try destruct Ht;
-    rewrite (match_tree (bind_tree _ _)); simpl;
-    (rewrite <- match_tree; auto) +
-    (apply IHpa'; auto).
+    simpl in *.
+  - destruct pb; apply Hk.
+  - apply IHpa'; auto.
+Qed.
+
+Lemma In_tree_map {A B}
+      (f : A -> B) (t : tree A) (a : A) (p : path) :
+  In_tree a t p -> In_tree (f a) (map_tree f t) p.
+Proof.
+  intros.
+  rewrite <- app_nil_r.
+  eapply In_tree_bind; [ eauto | constructor ].
 Qed.
 
 (* A path to [a] in tree [t], with constructors
    [Left], [Right], [Here]. *)
-Definition tree_path {A} (t : tree A) (a : A) : Type :=
-  sigT (In_tree t a).
+Definition tree_path {A} (a : A) (t : tree A) : Type :=
+  sigT (In_tree a t).
 
-Definition GoLeft {A} {a : A} {t1 t2} (p_ : tree_path t1 a) :
-  tree_path (Split t1 t2) a :=
-  existT _ (Left :: projT1 p_) (projT2 p_).
+Definition GoDir {A} {a : A} {s}
+           (d : SplitDirection) (p_ : tree_path a (s d)) :
+  tree_path a (Unguard (Fork' s)) :=
+  existT _ (d :: projT1 p_) (projT2 p_).
 
-Definition GoRight {A} {a : A} {t1 t2} (p_ : tree_path t2 a) :
-  tree_path (Split t1 t2) a :=
-  existT _ (Right :: projT1 p_) (projT2 p_).
+Definition GoLeft {A} {a : A} {t1 t2} :
+  tree_path a t1 -> tree_path a (Split t1 t2) :=
+  GoDir Left.
 
-Definition GoHere {A} {a : A} : tree_path (Leaf a) a :=
+Definition GoRight {A} {a : A} {t1 t2} :
+  tree_path a t2 -> tree_path a (Split t1 t2) :=
+  GoDir Right.
+
+Definition GoHere {A} {a : A} : tree_path a (Leaf a) :=
   existT _ [] eq_refl.
 
 (* Finite trees, meant to represent finite approximations of
    infinite trees. *)
 Inductive pretree : Type :=
-| Split_ : pretree -> pretree -> pretree
+| Any_ : pretree
 | Leaf_ : pretree
-| Any_ : pretree.
+| Fork_ : (SplitDirection -> pretree) -> pretree.
 
 (* This relation can be seen as a form of unifiability. *)
 Fixpoint prefix_of {A} (t : tree A) (q : pretree) : Prop :=
   match q, t with
-  | Split_ q1 q2, Split t1 t2 =>
-    prefix_of t1 q1 /\ prefix_of t2 q2
-  | Leaf_, Leaf _ => True
   | Any_, _ => True
+  | Leaf_, Leaf _ => True
+  | Fork_ r, Unguard (Fork' s) =>
+    forall d, prefix_of (s d) (r d)
   | _, _ => False
   end.
 
 (* Universal quantification over values of a tree [t]
    covered by the prefix [q]. *)
-(* TODO make it an inductive type. *)
 Fixpoint ForallPT {A} (t : tree A) (q : pretree) :
-  (forall a, tree_path t a -> Prop) -> Prop :=
-  match q, t return (forall a, tree_path t a -> _) -> _ with
-  | Split_ q1 q2, Split t1 t2 => fun P =>
-    ForallPT t1 q1 (fun a p => P a (GoLeft p)) /\
-    ForallPT t2 q2 (fun a p => P a (GoRight p))
-  | Leaf_, Leaf a => fun P => P a GoHere
+  (forall a, tree_path a t -> Prop) -> Prop :=
+  match q, t return (forall a, tree_path a t -> _) -> _ with
   | Any_, _ => fun _ => True
+  | Leaf_, Leaf a => fun P => P a GoHere
+  | Fork_ r, Unguard (Fork' s) => fun P =>
+    forall d,
+      ForallPT (s d) (r d) (fun a p => P a (GoDir d p))
   | _, _ => fun _ => False
   end.
 
@@ -292,22 +301,22 @@ Lemma tree_coarbitrary_seed A :
     exists s,
       ForallPT t q (fun x p_ => f x = coarbitrary_path (projT1 p_) s).
 Proof.
-  intros t q.
+  intros t q f.
   generalize dependent t.
-  induction q; intros t f Hq.
-  - destruct t; try solve [destruct Hq].
-    destruct Hq as [Hq1 Hq2].
-    destruct (IHq1 t1 f Hq1) as [ s1 Hs1 ].
-    destruct (IHq2 t2 f Hq2) as [ s2 Hs2 ].
+  induction q as [ | | r Hr ]; intros t Hq.
+  - destruct randomSeed_inhabited as [s'].
+    exists s'; simpl; auto.
+  - destruct t; destruct Hq.
+    exists (f a); simpl; auto.
+  - destruct t as [ | [ | s ] ]; try contradiction Hq.
+    pose (Hs := fun d => Hr d (s d) (Hq d)); clearbody Hs.
+    destruct (Hs Left) as [ s1 Hs1 ].
+    destruct (Hs Right) as [ s2 Hs2 ].
     destruct (randomSplitAssumption s1 s2) as [ s0 Hs0 ].
     exists s0.
     simpl.
     rewrite Hs0.
-    auto.
-  - destruct t; destruct Hq.
-    exists (f a); simpl; auto.
-  - destruct randomSeed_inhabited as [s'].
-    exists s'; simpl; auto.
+    intros []; auto.
 Qed.
 
 (* We now need to transport that lemma to the original
@@ -320,15 +329,15 @@ Qed.
 Class TreeCoArbitrary A `{CoArbitrary A} : Type :=
   { tree_coarbitrary : tree A;
     tree_complete :
-      forall a, In_tree tree_coarbitrary a (path_coarbitrary a);
+      forall a, In_tree a tree_coarbitrary (path_coarbitrary a);
   }.
 
 Lemma tree_complete_coyoneda A `{CoArbitrary A}
       (t : (A -> A) -> tree A) :
   (forall a k,
-      In_tree (t k) (k a) (path_coarbitrary a)) ->
+      In_tree (k a) (t k) (path_coarbitrary a)) ->
   forall a,
-    In_tree (t id) a (path_coarbitrary a).
+    In_tree a (t id) (path_coarbitrary a).
 Proof.
   intros Ht a.
   apply Ht with (k := id).
@@ -342,75 +351,62 @@ Lemma prefix_union {A} :
     prefix_of t q2 ->
     exists (q3 : pretree),
       prefix_of t q3 /\
-      forall (P : forall a, tree_path t a -> Prop),
+      forall (P : forall a, tree_path a t -> Prop),
         ForallPT t q3 P -> ForallPT t q1 P /\ ForallPT t q2 P.
 Proof.
   fix prefix_union 2.
   intros t q1 q2 Hq1 Hq2.
-  destruct q1 as [q1l q1r | | ] eqn:e1.
-  - destruct t as [tl tr | | ].
-    + destruct q2 as [q2l q2r | | ] eqn:e2.
-      * destruct Hq1 as [Hq1l Hq1r].
-        destruct Hq2 as [Hq2l Hq2r].
-        destruct
-          (prefix_union tl q1l q2l Hq1l Hq2l)
-          as [q3l Hq3l].
-        destruct
-          (prefix_union tr q1r q2r Hq1r Hq2r)
-          as [q3r Hq3r].
-        exists (Split_ q3l q3r).
-        split.
-        { split; [apply Hq3l | apply Hq3r]. }
-        intros P H.
-        repeat (split + eauto + apply Hq3l + apply Hq3r + apply H).
-      * inversion Hq2.
-      * eexists (Split_ q1l q1r).
-        split; eauto.
-    + inversion Hq1.
-    + inversion Hq1.
-  - exists Leaf_.
-    destruct t; destruct q2;
-      try solve [inversion Hq1 | inversion Hq2]; auto.
-  - exists q2.
-    auto.
+  destruct t as [ | [ | s ] ];
+    (destruct q1 as [ | | r1 ] eqn:e1;
+     [ exists q2; clear prefix_union; auto | | ]);
+    try contradiction Hq1;
+    (destruct q2 as [ | | r2 ] eqn:e2;
+     [ exists q1; clear prefix_union; rewrite e1; auto | | ]);
+    try contradiction Hq2.
+  - exists Leaf_; clear prefix_union; auto.
+  - simpl in *.
+    pose (H3 :=
+      fun d => prefix_union (s d) (r1 d) (r2 d) (Hq1 d) (Hq2 d));
+      clearbody H3.
+    destruct (H3 Left) as [q3l [ Hq3l Hq3l' ]].
+    destruct (H3 Right) as [q3r [ Hq3r Hq3r' ]].
+    exists (Fork_ (fun d => dir d q3l q3r)).
+    split.
+    { intros []; [apply Hq3l | apply Hq3r]. }
+    intros P H.
+    split; (intros []; [apply Hq3l' | apply Hq3r']); apply H.
 Qed.
 
 Lemma path_to_tree {A} :
   forall (t : tree A)
          (x : A)
-         (p_ : tree_path t x),
+         (p_ : tree_path x t),
     exists q,
       prefix_of t q /\
-      forall (P : forall (a : A), tree_path t a -> Prop),
+      forall (P : forall (a : A), tree_path a t -> Prop),
         ForallPT t q P -> P x p_.
 Proof.
   intros t x [p Hp].
   generalize dependent t.
-  generalize dependent p.
-  fix path_to_tree 1.
-  intros [ | [] p ]; [ clear path_to_tree | |];
-    intros [t1 t2 | | ] Hp; try destruct Hp.
-  - exists Leaf_; simpl; auto.
-  - destruct (path_to_tree p t1 Hp) as [q' [Htq' Hq']].
-    exists (Split_ q' Any_).
+  induction p as [ | d p' IHp' ]; intros t Hp;
+    destruct t as [ | [ | s ]]; try destruct Hp.
+  - exists Leaf_; split; simpl; auto.
+  - simpl in *.
+    destruct (IHp' _ Hp) as [ q' [ Hq' Hq'' ] ].
+    exists (Fork_ (fun d' => dir d' (dir d q' Any_) (dir d Any_ q'))).
     split.
-    { simpl; auto. }
+    { destruct d; intros []; simpl; auto. }
     intros P H.
-    apply Hq' with (P := fun a p => P a (GoLeft p)), H.
-  - destruct (path_to_tree p t2 Hp) as [q' [Htq' Hq']].
-    exists (Split_ Any_ q').
-    split.
-    { simpl; auto. }
-    intros P H.
-    apply Hq' with (P := fun a p => P a (GoRight p)), H.
+    apply Hq'' with (P := fun a p => P a (GoDir d p)).
+    destruct d; apply H.
 Qed.
 
 Lemma list_to_tree {A} :
   forall (t : tree A)
-         (xs : list { x : A & tree_path t x }),
+         (xs : list { x : A & tree_path x t }),
     exists q,
       prefix_of t q /\
-      forall (P : forall a, tree_path t a -> Prop),
+      forall (P : forall a, tree_path a t -> Prop),
         ForallPT t q P ->
         Forall (fun x_ => P (projT1 x_) (projT2 x_)) xs.
 Proof.
@@ -430,7 +426,7 @@ Qed.
 
 Lemma tree_coarbitrary_seed' {A} :
   forall (t : tree A)
-         (xs : list { x : A & tree_path t x })
+         (xs : list { x : A & tree_path x t })
          (f : A -> RandomSeed),
   exists s,
     Forall
@@ -568,7 +564,7 @@ Instance TreeCoArbitrary_bool : TreeCoArbitrary bool :=
   { tree_coarbitrary :=
       Split (Leaf true) (Leaf false) }.
 Proof.
-  intros []; simpl; auto.
+  intros []; do 2 constructor.
 Qed.
 
 Instance CoArbitraryCorrect_bool : CoArbitraryCorrect bool := {}.
@@ -606,10 +602,10 @@ Instance TreeCoArbitrary_positive : TreeCoArbitrary positive :=
 Proof.
   pose (e := path_coarb_app positive); clearbody e.
   apply tree_complete_coyoneda.
-  induction a; intro k;
-    reflexivity +
-    (simpl; rewrite e;
-     apply IHa with (k := comp k _)).
+  induction a; intro k; simpl;
+    [ | | auto ];
+    rewrite e;
+    apply IHa with (k := comp k _).
 Qed.
 
 Instance CoArbitraryCorrect_positive : CoArbitraryCorrect positive :=
@@ -720,59 +716,33 @@ Qed.
 Instance TreeCoArbitrary_list {A} `{TreeCoArbitraryCorrect A} :
   TreeCoArbitrary (list A) :=
   { tree_coarbitrary :=
-      Split
-        (Leaf [])
+      Unguard
         ((cofix tree_ca k :=
-           bind_tree tree_coarbitrary (fun x =>
-           Split
-             (Leaf (k [x]))
-             (tree_ca (comp k (cons x))))
+            Split'
+              (Leaf (k []))
+              (bind_tree_guarded tree_coarbitrary (fun x =>
+                 tree_ca (comp k (cons x))))
          ) (fun x => x))
   }.
 Proof.
   intro xs.
-  destruct xs as [ | x xs' ]; simpl; auto.
-  rewrite path_coarb_app; [ | typeclasses eauto ].
   remember id as k eqn:e.
-  replace (x :: xs') with (k (x :: xs')); [ | rewrite e; reflexivity ].
+  cut (xs = k xs);
+    [ intro Hkxs; rewrite Hkxs at 1; clear Hkxs
+    | rewrite e; reflexivity ].
   clear e.
   generalize dependent k.
-  generalize dependent x.
-  induction xs' as [ | x' xs'' ]; intros x k; simpl.
-  - match goal with
-    | [ |- In_tree (?t ?k) _ _ ] =>
-      replace (t k) with
-        (bind_tree tree_coarbitrary (fun x =>
-         Split (Leaf (k [x])) (t (comp k (cons x)))))
-    end.
-    { apply In_tree_bind with (a := x).
-      + apply tree_complete.
-      + reflexivity. }
-    { match goal with
-      | [ |- ?u = ?v ] =>
-        rewrite (match_tree u);
-        rewrite (match_tree v)
-      end; reflexivity. }
-  - rewrite path_coarb_app; auto.
+  induction xs as [ | x xs' ]; intros k.
+  - simpl; auto.
+  - simpl.
+    rewrite path_coarb_app; [ | typeclasses eauto ].
     pose (pca := @path_coarb_app (list A) _ _); clearbody pca.
     rewrite pca.
-    repeat (rewrite <- app_assoc; simpl).
-    match goal with
-    | [ |- In_tree (?t ?k) _ _ ] =>
-      replace (t k) with
-        (bind_tree tree_coarbitrary (fun x =>
-         Split (Leaf (k [x])) (t (comp k (cons x)))))
-    end.
-    { apply In_tree_bind with (a := x).
-      + apply tree_complete.
-      + specialize IHxs'' with (x := x').
-        rewrite pca in IHxs''.
-        apply IHxs''. }
-    { match goal with
-      | [ |- ?u = ?v ] =>
-        rewrite (match_tree u);
-        rewrite (match_tree v)
-      end; reflexivity. }
+    rewrite <- app_assoc.
+    simpl.
+    eapply In_tree_bind.
+    + apply tree_complete.
+    + apply IHxs' with (k := comp k (cons x)).
 Qed.
 
 Instance CoArbitraryCorrect_list {A}
