@@ -5,7 +5,6 @@ Require Import SimpleIO.IOMonad.
 Require Import SimpleIO.CoqPervasives.
 
 Import IONotations.
-Open Scope io_scope.
 
 Parameter supports_ansi : out_channel -> IO bool.
 

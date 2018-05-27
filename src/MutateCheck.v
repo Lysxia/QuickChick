@@ -11,7 +11,6 @@ Require Import Utils.
 Require Import List.
 Import ListNotations.
 Import IONotations.
-Open Scope io_scope.
 
 (* Default mutateable instance for lists *)
 (* Priority 1, in case someone overrides the default to further mutate
