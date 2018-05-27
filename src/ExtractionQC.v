@@ -49,7 +49,7 @@ Extract Constant Nat.div => "(/)".
 Extract Constant Test.gte => "(>=)".
 Extract Constant le_gt_dec => "(<=)".
 Extract Constant trace =>
-  "(fun l -> print_string (
+  "(fun l -> Pervasives.print_endline (
    let s = Bytes.create (List.length l) in
    let rec copy i = function
     | [] -> s

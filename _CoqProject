@@ -18,6 +18,7 @@ src/Checker.v
 src/SemChecker.v
 src/Term.v
 src/Test.v
+src/Utils.v
 src/ExtractionQC.v
 src/tactic_quickchick.ml4
 src/quickchick_plugin.mlpack

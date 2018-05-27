@@ -1,5 +1,6 @@
 Require Import mathcomp.ssreflect.ssreflect.
 From mathcomp Require Import ssrbool.
+Require Import SimpleIO.IOMonad.
 Require Import QuickChick ZArith Strings.Ascii Strings.String.
 
 (* ====================================================================== *)
@@ -371,7 +372,7 @@ Declare Instance testPolyFun :
 
 (* Print a specific string if the property fails. *)
 Parameter whenFail : 
-  forall {prop : Type} `{Checkable prop} (str : string), prop -> Checker.
+  forall {prop : Type} `{Checkable prop} (act : IO unit), prop -> Checker.
 
 (* Signify that the property is expected to fail. *)
 Parameter expectFailure :

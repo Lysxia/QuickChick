@@ -8,8 +8,18 @@ From mathcomp Require Import ssrnat ssrbool eqtype div.
 Require Import SimpleIO.IOMonad.
 Require Import SimpleIO.CoqPervasives.
 
-From QuickChick Require Import RoseTrees RandomQC GenLow GenHigh SemChecker.
-From QuickChick Require Import Show Checker State Classes Term.
+From QuickChick Require Import
+     RoseTrees
+     RandomQC
+     GenLow
+     GenHigh
+     SemChecker
+     Show
+     Checker
+     State
+     Classes
+     Term
+     Utils.
 
 Require Import Coq.Strings.String.
 Require Import Coq.Strings.Ascii.
@@ -165,28 +175,28 @@ Definition giveUp (st : State) (_ : nat -> RandomSeed -> QProp) :
    IOMonad.ret (GaveUp n_success (summary st) msg)).
 
 Definition callbackPostTest
-           (st : State) (res : Checker.Result) : nat :=
+           (st : State) (res : Checker.Result) : IO unit :=
   match res with
   | MkResult o e r i s c t =>
-    fold_left (fun acc callback =>
-                 match callback with
-                 | PostTest _ call =>
-                   (call st (MkSmallResult o e r i s t)) + acc
-                 | _ => acc
-                 end) c 0
+    let res := MkSmallResult o e r i s t in
+    traverse_io_ (fun callback =>
+      match callback with
+      | PostTest _ call => call st res
+      | _ => IOMonad.ret tt
+      end) c
   end.
 
 Definition callbackPostFinalFailure
-           (st : State) (res : Checker.Result) : nat :=
-match res with
+           (st : State) (res : Checker.Result) : IO unit :=
+  match res with
   | MkResult o e r i s c t =>
-  fold_left (fun acc callback =>
-               match callback with
-                 | PostFinalFailure _ call =>
-                   (call st (MkSmallResult o e r i s t)) + acc
-                 | _ => acc
-               end) c 0
-end.
+    let res := MkSmallResult o e r i s t in
+    traverse_io_ (fun callback =>
+      match callback with
+      | PostFinalFailure _ call => call st res
+      | _ => IOMonad.ret tt
+      end) c
+  end.
 
 Fixpoint localMin (st : State) (r_ : Rose_ Checker.Result)
          {struct r_} : IO (nat * Checker.Result) :=
@@ -195,11 +205,11 @@ Fixpoint localMin (st : State) (r_ : Rose_ Checker.Result)
     let fix localMin' st ts {struct ts} :=
         match ts with
         | nil =>
-          let zero := callbackPostFinalFailure st res in
-          IOMonad.ret (numSuccessShrinks st + zero, res)
+          callbackPostFinalFailure st res;;
+          IOMonad.ret (numSuccessShrinks st, res)
         | cons r' ts' =>
           pluckRose_ r' (fun '((MkRose res' _) as r_') =>
-          let zero := callbackPostTest st res in
+          callbackPostTest st res;;
           let tryNext :=
               localMin' (updTryShrinks st (fun x => x + 1)) ts' in
           match ok res' with
@@ -211,7 +221,7 @@ Fixpoint localMin (st : State) (r_ : Rose_ Checker.Result)
                 | _, _ => false
                 end in
             if consistent_tags then
-              localMin (updSuccessShrinks st (fun x => x + 1 + zero))
+              localMin (updSuccessShrinks st (fun x => x + 1))
                        r_'
             else
               tryNext
@@ -242,7 +252,7 @@ Fixpoint runATest (st : State) (f : nat -> RandomSeed -> QProp)
       | MkProp r0 =>
         pluckRose_ r0 (fun '(MkRose res ts) =>
         (* TODO: CallbackPostTest *)
-        let res_cb := callbackPostTest st res in
+        callbackPostTest st res;;
         match res with
         | MkResult (Some x) e reas _ s _ t =>
           if x then (* Success *)
@@ -254,7 +264,7 @@ Fixpoint runATest (st : State) (f : nat -> RandomSeed -> QProp)
                       ShowFunctions.string_concat 
                         (ShowFunctions.intersperse " , "%string s) in
                   match Map.find s_to_add ls with 
-                    | None   => Map.add s_to_add (res_cb + 1) ls
+                    | None   => Map.add s_to_add 1 ls
                     | Some k => Map.add s_to_add (k+1) ls
                   end 
                 end in

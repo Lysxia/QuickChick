@@ -166,14 +166,14 @@ Proof.
   by apply H'.
 Qed.
 
-Lemma semWhenFail_idSize {C} `{Checkable C} (str : String.string) (c : C) s :
-    semCheckerSize (whenFail str c) s <-> semCheckableSize c s.
+Lemma semWhenFail_idSize {C} `{Checkable C} (act : _) (c : C) s :
+    semCheckerSize (whenFail act c) s <-> semCheckableSize c s.
 Proof.
   by rewrite /whenFail semCallback_idSize.
 Qed.
 
-Lemma semWhenFail_id {C} `{Checkable C} (str : String.string) (c : C) :
-    semChecker (whenFail str c) <-> semCheckable c.
+Lemma semWhenFail_id {C} `{Checkable C} (act : _) (c : C) :
+    semChecker (whenFail act c) <-> semCheckable c.
 Proof.
   by rewrite /whenFail semCallback_id.
 Qed.

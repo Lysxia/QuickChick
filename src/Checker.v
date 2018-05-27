@@ -3,12 +3,16 @@ Set Implicit Arguments.
 Require Import List.
 Require Import Coq.Strings.String.
 
+Require Import SimpleIO.IOMonad.
+Require Import SimpleIO.CoqPervasives.
+
 Require Import RoseTrees.
 Require Import Show.
 Require Import State.
 Require Import GenLow GenHigh.
 Require Import Classes.
 Require Import DependentClasses.
+Require Import Term.
 
 Import GenLow GenHigh.
 
@@ -26,9 +30,9 @@ Inductive SmallResult :=
 
 Inductive Callback : Type :=
 | PostTest :
-    CallbackKind -> (State -> SmallResult -> nat) -> Callback
+    CallbackKind -> (State -> SmallResult -> IO unit) -> Callback
 | PostFinalFailure :
-    CallbackKind -> (State -> SmallResult -> nat) -> Callback.
+    CallbackKind -> (State -> SmallResult -> IO unit) -> Callback.
 
 Record Result :=
   MkResult {
@@ -186,14 +190,13 @@ Definition callback {prop : Type} `{Checkable prop}
   mapTotalResult (fun r => addCallback r cb).
 
 Definition printTestCase {prop : Type} `{Checkable prop}
-           (s : string) (p : prop) : Checker :=
-  (* The following newline was causing an unwanted extra new line *)
-  callback (PostFinalFailure Counterexample (fun _st _res => trace (s (* ++ nl*)) 0)) p.
+           (s : string) : prop -> Checker :=
+  callback (PostFinalFailure Counterexample (fun st _res =>
+    output_term (terminal st) s)).
 
 Definition whenFail {prop : Type} `{Checkable prop}
-           (str : string) : prop -> Checker :=
-  callback (PostFinalFailure Counterexample (fun _st _sr => trace (str ++ nl) 0)).
-
+           (act : IO unit) : prop -> Checker :=
+  callback (PostFinalFailure NotCounterexample (fun _st _sr => act)).
 
 Definition expectFailure {prop: Type} `{Checkable prop} (p: prop) :=
   mapTotalResult (fun res => updExpect res false) p.
@@ -342,9 +345,9 @@ Definition disjAux (p q : Rose Result) : Rose Result :=
                                (orb (interrupted result1) (interrupted result2))
                                (stamp result1 ++ stamp result2)
                                (callbacks result1 ++ 
-                                    cons (PostFinalFailure Counterexample
-                                                      (fun _ _ => trace newline 0)) nil ++
-                                    callbacks result2 )
+                                cons (PostFinalFailure Counterexample
+                                        (fun st _ => output_term (terminal st) "Backtracking (disjoin)")) nil ++
+                                callbacks result2)
                                (result_tag result2))
         | None => returnRose result2 (* Leo: What to do here? *)
         end

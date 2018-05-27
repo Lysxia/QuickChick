@@ -1,11 +1,13 @@
 Require Import QuickChick.
 Require Import SimpleIO.IOMonad.
+Require Import SimpleIO.CoqPervasives.
 
 Class Mutateable (A : Type) : Type :=
 {
   mutate : A -> list A
 }.
 
+Require Import Utils.
 Require Import List.
 Import ListNotations.
 Import IONotations.
@@ -46,26 +48,12 @@ Definition message (kill : bool) (n1 n2 : nat) :=
 
 Open Scope nat.
 
-Fixpoint fold_io {A B} (f : A -> B -> IO A) (xs : list B) (a : A) :
-  IO A :=
-  match xs with
-  | [] => ret a
-  | x :: xs' => bind (f a x) (fun a' => fold_io f xs' a')
-  end.
-
-Fixpoint existsb_io {A} (f : A -> IO bool) (xs : list A) : IO bool :=
-  match xs with
-  | [] => ret true
-  | x :: xs' =>
-    bind (f x) (fun b => if b then ret true else existsb_io f xs')
-  end.
-
 Definition mutateCheckManyWith {A P : Type} {_: Checker.Checkable P}
            {mutA: Mutateable A} (args : Args)
            (a : A) (ps : A -> list P)
   : IO (nat * nat) :=
   let mutants := mutate a in
-  Checker.trace ("Fighting " ++ show (List.length mutants) ++ " mutants")
+  print_endline ("Fighting " ++ show (List.length mutants) ++ " mutants");;
   (fold_io
      (fun n m => match n with (n1,n2) =>
         kill <- existsb_io (fun c =>
