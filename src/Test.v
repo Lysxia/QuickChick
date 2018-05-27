@@ -284,13 +284,14 @@ Fixpoint runATest (st : State) (f : nat -> RandomSeed -> QProp)
                 | _ => "" 
                 end in 
             let pre : string := (if expect res then "*** Failed "
-                                 else "+++ Failed (as expected) ")%string in
+                                 else "+++ Failed (as expected)")%string in
+            update_term (terminal st) pre;;
             n_shrinks_res <- localMin st (MkRose res ts);;
             let (numShrinks, res') := n_shrinks_res in
             let suf := ("after " ++ (show (S nst)) ++ " tests and "
                                  ++ (show numShrinks) ++ " shrinks. ("
                                  ++ (show ndt) ++ " discards)")%string in
-            (* TODO: Output *)
+            clear_output_term (terminal st) (pre ++ suf);;
             if (negb (expect res)) then
               IOMonad.ret
                 (Success (nst + 1) ndt (summary st)
