@@ -199,14 +199,27 @@ Definition callbackPostFinalFailure
   end.
 
 Fixpoint localMin (st : State) (r_ : Rose_ Checker.Result)
-         {struct r_} : IO (nat * Checker.Result) :=
+         {struct r_} : IO (nat * Checker.Result * string) :=
   match r_ with
   | MkRose res ts =>
     let fix localMin' st ts {struct ts} :=
         match ts with
         | nil =>
+          let n_success := numSuccessTests st in
+          let n_shrinks := numSuccessShrinks st in
+          let n_discard := numDiscardedTests st in
+          let header :=
+              (if expect res then "*** Failed! "
+               else "+++ OK, failed as expected. ") ++
+              "after " ++ show (n_success.+1) ++ " tests and "
+                       ++ show n_shrinks ++ " shrinks"
+                       ++ if n_discard is 0 then
+                            " (" ++ show n_discard ++ " discards)"
+                          else "" in
+          let output := header ++ ": " ++ reason res in
+          clear_output_term (terminal st) output;;
           callbackPostFinalFailure st res;;
-          IOMonad.ret (numSuccessShrinks st, res)
+          IOMonad.ret (n_shrinks, res, output)
         | cons r' ts' =>
           pluckRose_ r' (fun '((MkRose res' _) as r_') =>
           callbackPostTest st res;;
@@ -283,23 +296,16 @@ Fixpoint runATest (st : State) (f : nat -> RandomSeed -> QProp)
                 | Some s => "Tag: " ++ s ++ nl
                 | _ => "" 
                 end in 
-            let pre : string := (if expect res then "*** Failed "
-                                 else "+++ Failed (as expected)")%string in
-            update_term (terminal st) pre;;
             n_shrinks_res <- localMin st (MkRose res ts);;
-            let (numShrinks, res') := n_shrinks_res in
-            let suf := ("after " ++ (show (S nst)) ++ " tests and "
-                                 ++ (show numShrinks) ++ " shrinks. ("
-                                 ++ (show ndt) ++ " discards)")%string in
-            clear_output_term (terminal st) (pre ++ suf);;
+            let: (numShrinks, res', output) := n_shrinks_res in
             if (negb (expect res)) then
               IOMonad.ret
                 (Success (nst + 1) ndt (summary st)
-                         (tag_text ++ pre ++ suf))
+                         (tag_text ++ output))
             else
               IOMonad.ret
                 (Failure (nst + 1) numShrinks ndt r size
-                         (tag_text ++ pre ++ suf)
+                         (tag_text ++ output)
                          (summary st) reas)
         | MkResult None e reas _ s _ t =>
           (* Ignore labels of discarded tests? *)
