@@ -8,11 +8,10 @@ From mathcomp Require Import ssrnat ssrbool eqtype div.
 Require Import SimpleIO.IOMonad.
 
 From QuickChick Require Import RoseTrees RandomQC GenLow GenHigh SemChecker.
-From QuickChick Require Import Show Checker State Classes.
+From QuickChick Require Import Show Checker State Classes Term.
 
 Require Import Coq.Strings.String.
 Require Import Coq.Strings.Ascii.
-Require Import Coq.Strings.String.
 Require Import List.
 
 Require Import Recdef.
@@ -20,6 +19,8 @@ Require Import Recdef.
 Require Import Arith.EqNat.
 
 Import GenLow GenHigh.
+
+Import IONotations.
 
 Definition gte n m := Nat.leb m n.
 
@@ -128,22 +129,42 @@ Definition summary (st : State) : list (string * nat) :=
   let res := Map.fold (fun key elem acc => (key,elem) :: acc) (labels st) nil
   in insSortBy (fun x y => snd y <= snd x) res .
 
-Definition doneTesting (st : State) (f : nat -> RandomSeed -> QProp) : Result :=
- if expectedFailure st then
-    Success (numSuccessTests st + 1) (numDiscardedTests st) (summary st)
-            ("+++ Passed " ++ (show (numSuccessTests st)) ++ " tests (" ++ (show (numDiscardedTests st)) ++ " discards)")
+Definition doneTesting (st : State) (f : nat -> RandomSeed -> QProp) :
+  IO Result :=
+  let n_success := numSuccessTests st in
+  let n_discard := numDiscardedTests st in
+  if expectedFailure st then
+    let msg :=
+        "+++ Passed " ++ show n_success ++
+        " tests" ++
+        match n_discard with
+        | O => ""
+        | S _ => " (" ++ show n_discard ++ " discards)"
+        end in
+    (endline_term (terminal st) msg;;
+     IOMonad.ret
+       (Success (n_success + 1) n_discard (summary st) msg))%io
   else
-    NoExpectedFailure (numSuccessTests st) (summary st)
-                      ("*** Failed! Passed " ++ (show (numSuccessTests st))
-                                             ++ " tests (expected Failure)").
+    let msg :=
+        "*** Failed! Passed " ++ show n_success ++
+        " tests (expected failure)" in
+    (endline_term (terminal st) msg;;
+     IOMonad.ret
+       (NoExpectedFailure n_success (summary st) msg))%io.
   (* TODO: success st - labels *)
 
-Definition giveUp (st : State) (_ : nat -> RandomSeed -> QProp) : Result :=
-  GaveUp (numSuccessTests st) (summary st)
-         ("*** Gave up! Passed only " ++ (show (numSuccessTests st)) ++ " tests"
-          ++  newline ++ "Discarded: " ++ (show (numDiscardedTests st))).
+Definition giveUp (st : State) (_ : nat -> RandomSeed -> QProp) :
+  IO Result :=
+  let n_success := numSuccessTests st in
+  let n_discard := numDiscardedTests st in
+  let msg :=
+      "*** Gave up! Passed only " ++ show n_success ++ " tests, " ++
+      "discarded  " ++ show n_discard in
+  (endline_term (terminal st) msg;;
+   IOMonad.ret (GaveUp n_success (summary st) msg)).
 
-Definition callbackPostTest (st : State) (res : Checker.Result) : nat :=
+Definition callbackPostTest
+           (st : State) (res : Checker.Result) : nat :=
   match res with
   | MkResult o e r i s c t =>
     fold_left (fun acc callback =>
@@ -153,10 +174,9 @@ Definition callbackPostTest (st : State) (res : Checker.Result) : nat :=
                  | _ => acc
                  end) c 0
   end.
-  
 
-Definition callbackPostFinalFailure (st : State) (res : Checker.Result)
-: nat :=
+Definition callbackPostFinalFailure
+           (st : State) (res : Checker.Result) : nat :=
 match res with
   | MkResult o e r i s c t =>
   fold_left (fun acc callback =>
@@ -203,7 +223,9 @@ Fixpoint localMin (st : State) (r_ : Rose_ Checker.Result)
 Fixpoint runATest (st : State) (f : nat -> RandomSeed -> QProp)
          (maxSteps : nat) : IO Result :=
   if maxSteps is maxSteps'.+1 then
-    let size := (computeSize st) (numSuccessTests st) (numDiscardedTests st) in
+    let n_success := numSuccessTests st in
+    let n_discard := numDiscardedTests st in
+    let size := (computeSize st) n_success n_discard in
     let (rnd1, rnd2) := randomSplit (randomSeed st) in
     let test (st : State) :=
         if (gte (numSuccessTests st) (maxSuccessTests st)) then
@@ -213,9 +235,10 @@ Fixpoint runATest (st : State) (f : nat -> RandomSeed -> QProp)
              else runATest st f maxSteps'
     in
     match st with
-    | MkState mst mdt ms cs nst ndt ls e r nss nts =>
+    | MkState tm mst mdt ms cs nst ndt ls e r nss nts =>
       match f size rnd1 with
-      | MkProp (MkRose res ts) =>
+      | MkProp r0 =>
+        pluckRose_ r0 (fun '(MkRose res ts) =>
         (* TODO: CallbackPostTest *)
         let res_cb := callbackPostTest st res in
         match res with
@@ -241,7 +264,7 @@ Fixpoint runATest (st : State) (f : nat -> RandomSeed -> QProp)
                                     | Some k => Map.add stamp (k+1) stamps
                                     end
                                  ) s ls in*)
-            test (MkState mst mdt ms cs (nst + 1) ndt ls' e rnd2 nss nts)
+            test (MkState tm mst mdt ms cs (nst + 1) ndt ls' e rnd2 nss nts)
           else (* Failure *)
             let tag_text := 
                 match t with 
@@ -250,24 +273,31 @@ Fixpoint runATest (st : State) (f : nat -> RandomSeed -> QProp)
                 end in 
             let pre : string := (if expect res then "*** Failed "
                                  else "+++ Failed (as expected) ")%string in
-            let (numShrinks, res') := localMin st (MkRose res ts) in
+            n_shrinks_res <- localMin st (MkRose res ts);;
+            let (numShrinks, res') := n_shrinks_res in
             let suf := ("after " ++ (show (S nst)) ++ " tests and "
                                  ++ (show numShrinks) ++ " shrinks. ("
                                  ++ (show ndt) ++ " discards)")%string in
             (* TODO: Output *)
             if (negb (expect res)) then
-              Success (nst + 1) ndt (summary st) (tag_text ++ pre ++ suf)
+              IOMonad.ret
+                (Success (nst + 1) ndt (summary st)
+                         (tag_text ++ pre ++ suf))
             else
-              Failure (nst + 1) numShrinks ndt r size (tag_text ++ pre ++ suf) (summary st) reas
+              IOMonad.ret
+                (Failure (nst + 1) numShrinks ndt r size
+                         (tag_text ++ pre ++ suf)
+                         (summary st) reas)
         | MkResult None e reas _ s _ t =>
           (* Ignore labels of discarded tests? *)
-          test (MkState mst mdt ms cs nst ndt.+1 ls e rnd2 nss nts)
-        end
+          test (MkState tm mst mdt ms cs nst ndt.+1 ls e rnd2 nss nts)
+        end)%io
       end
     end
   else giveUp st f.
 
-Definition test (st : State) (f : nat -> RandomSeed -> QProp) : Result :=
+Definition test (st : State) (f : nat -> RandomSeed -> QProp) :
+  IO Result :=
   if (gte (numSuccessTests st) (maxSuccessTests st)) then
     doneTesting st f
   else if (gte (numDiscardedTests st) (maxDiscardedTests st)) then
@@ -281,7 +311,7 @@ Require Import ZArith.
 (* ZP: This was quickCheckResult before but since we always return result
        return result there is no reason for such distinction *)
 Definition quickCheckWith {prop : Type} {_ : Checkable prop}
-           (a : Args) (p : prop) : Result :=
+           (a : Args) (p : prop) : IO Result :=
   (* ignore terminal - always use trace :D *)
   let (rnd, computeFun) :=
       match replay a with
@@ -289,7 +319,8 @@ Definition quickCheckWith {prop : Type} {_ : Checkable prop}
         | None          => (newRandomSeed, computeSize' a)
         (* make it more random...? need IO action *)
       end in
-  test (MkState (maxSuccess a)  (* maxSuccessTests   *)
+  test (MkState stdTerminal
+                (maxSuccess a)  (* maxSuccessTests   *)
                 (maxDiscard a)  (* maxDiscardTests   *)
                 (maxShrinks a)  (* maxShrinks        *)
                 computeFun      (* computeSize       *)
@@ -318,5 +349,5 @@ Instance showResult : Show Result := Build_Show _ (fun r =>
   end ++ newline).
 
 Definition quickCheck {prop : Type} {_ : Checkable prop}
-           (p : prop) : Result :=
+           (p : prop) : IO Result :=
   quickCheckWith stdArgs p.

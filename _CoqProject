@@ -16,6 +16,7 @@ src/ShowFacts.v
 src/State.v
 src/Checker.v
 src/SemChecker.v
+src/Term.v
 src/Test.v
 src/ExtractionQC.v
 src/tactic_quickchick.ml4
