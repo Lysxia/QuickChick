@@ -1,34 +1,57 @@
 (* Lazy Rose Trees *)
 
 Require Import List mathcomp.ssreflect.ssreflect.
+Require Import SimpleIO.IOMonad.
 Set Implicit Arguments.
 
 Record Lazy (T : Type) := lazy { force : T }.
 
-Inductive Rose (A : Type) : Type :=
-  MkRose : A -> Lazy (list (Rose A)) -> Rose A.
+Inductive Rose_ (A : Type) : Type :=
+| MkRose : A -> Lazy (list (Rose A)) -> Rose_ A
+with Rose (A : Type) : Type :=
+| PureRose : Rose_ A -> Rose A
+| IORose : forall {X : Type}, IO X -> (X -> Rose A) -> Rose A.
 
-Definition returnRose {A : Type} (x : A) := MkRose x (lazy nil).
+Definition pluckRose_ {A R : Type}
+         (r : Rose A) (ret : Rose_ A -> IO R) : IO R :=
+  (fix pluck r :=
+     match r with
+     | IORose _ io k => bind io (fun x => pluck (k x))
+     | PureRose r_ => ret r_
+     end) r.
+
+Definition returnRose {A : Type} (x : A) : Rose A :=
+  PureRose (MkRose x (lazy nil)).
+
+Definition mapRose_ {A B : Type}
+           (rio : Rose A) (f : Rose_ A -> Rose B) : Rose B :=
+  let fix go rio :=
+    match rio with
+    | PureRose r => f r
+    | IORose _ io k => IORose io (fun x => go (k x))
+    end in
+  go rio.
 
 Fixpoint joinRose {A : Type} (r : Rose (Rose A)) : Rose A :=
-  match r with
-    | MkRose (MkRose a ts) tts =>
-      MkRose a (lazy ((List.map joinRose (force tts)) ++ (force ts)))
-  end.
+  mapRose_ r  (fun '(MkRose r0 tts) =>
+  mapRose_ r0 (fun '(MkRose a ts) =>
+    PureRose
+      (MkRose a
+              (lazy ((List.map joinRose (force tts)) ++ force ts))))).
 
-Fixpoint repeatRose {A : Type} (n : nat) (r : Rose A) :=
-  match r with
-  | MkRose a ts => MkRose a (lazy (concat (repeat (force ts) n)))
-  end.
+Definition repeatRose {A : Type} (n : nat) (r : Rose A) :=
+  mapRose_ r (fun '(MkRose a ts) =>
+    PureRose (MkRose a (lazy (concat (repeat (force ts) n))))).
 
 Fixpoint fmapRose {A B : Type} (f : A -> B) (r : Rose A) : Rose B :=
-  match r with
-    | MkRose x rs => MkRose (f x) (lazy (List.map (fmapRose f) (force rs)))
-  end.
+  mapRose_ r (fun '(MkRose x rs) =>
+    PureRose (MkRose (f x) (lazy (List.map (fmapRose f) (force rs))))).
 
-Definition bindRose {A B : Type} (m : Rose A) (k : A -> Rose B) : Rose B :=
+Definition bindRose {A B : Type}
+           (m : Rose A) (k : A -> Rose B) : Rose B :=
   joinRose (fmapRose k m).
 
+(*
 (* CH: these seem unused now *)
 Lemma joinRoseFmapRose :
   forall {A B} (f: A -> B) (x : Rose A),
@@ -68,3 +91,4 @@ Proof.
     + by apply fmapRose_id.
     + by do 2 rewrite H2.
 Qed.
+*)

@@ -5,6 +5,8 @@ Require Import Omega.
 Require Import mathcomp.ssreflect.ssreflect.
 From mathcomp Require Import ssrnat ssrbool eqtype div.
 
+Require Import SimpleIO.IOMonad.
+
 From QuickChick Require Import RoseTrees RandomQC GenLow GenHigh SemChecker.
 From QuickChick Require Import Show Checker State Classes.
 
@@ -165,38 +167,41 @@ match res with
                end) c 0
 end.
 
-Fixpoint localMin (st : State) (r : Rose Checker.Result)
-         {struct r} : (nat * Checker.Result) :=
-  match r with
+Fixpoint localMin (st : State) (r_ : Rose_ Checker.Result)
+         {struct r_} : IO (nat * Checker.Result) :=
+  match r_ with
   | MkRose res ts =>
     let fix localMin' st ts {struct ts} :=
-        match ts return (nat * Checker.Result) with
+        match ts with
         | nil =>
           let zero := callbackPostFinalFailure st res in
-          (numSuccessShrinks st + zero, res)
-        | cons ((MkRose res' _) as r') ts' =>
-          let zero := callbackPostTest st res in 
+          IOMonad.ret (numSuccessShrinks st + zero, res)
+        | cons r' ts' =>
+          pluckRose_ r' (fun '((MkRose res' _) as r_') =>
+          let zero := callbackPostTest st res in
+          let tryNext :=
+              localMin' (updTryShrinks st (fun x => x + 1)) ts' in
           match ok res' with
-            | Some x =>
-              let consistent_tags := 
-                match result_tag res, result_tag res' with 
-                | Some t1, Some t2 => if string_dec t1 t2 then true else false
+          | Some false =>
+            let consistent_tags :=
+                match result_tag res, result_tag res' with
+                | Some t1, Some t2 => is_left (string_dec t1 t2)
                 | None, None => true
                 | _, _ => false
                 end in
-              if andb (negb x) consistent_tags then
-                localMin (updSuccessShrinks st (fun x => x + 1 + zero))
-                         r'
-              else
-                localMin' (updTryShrinks st (fun x => x + 1)) ts'
-            | None =>
-              localMin' (updTryShrinks st (fun x => x + 1)) ts'
-          end
+            if consistent_tags then
+              localMin (updSuccessShrinks st (fun x => x + 1 + zero))
+                       r_'
+            else
+              tryNext
+          | _ => tryNext
+          end)
         end in
     localMin' st (force ts)
   end.
 
-Fixpoint runATest (st : State) (f : nat -> RandomSeed -> QProp) (maxSteps : nat) :=
+Fixpoint runATest (st : State) (f : nat -> RandomSeed -> QProp)
+         (maxSteps : nat) : IO Result :=
   if maxSteps is maxSteps'.+1 then
     let size := (computeSize st) (numSuccessTests st) (numDiscardedTests st) in
     let (rnd1, rnd2) := randomSplit (randomSeed st) in

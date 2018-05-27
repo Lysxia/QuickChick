@@ -6,6 +6,7 @@ From mathcomp Require Import ssrbool ssrnat eqtype.
 Require Import Show Sets GenLow GenHigh RoseTrees Checker Classes.
 
 Import GenLow GenHigh QcNotation.
+Set Bullet Behavior "Strict Subproofs".
 
 Definition resultSuccessful (r : Result) : bool :=
   match r with
@@ -16,7 +17,8 @@ Definition resultSuccessful (r : Result) : bool :=
 
 Definition successful qp :=
   match qp with
-    | MkProp (MkRose res _) => resultSuccessful res
+  | MkProp (PureRose (MkRose res _)) => resultSuccessful res
+  | _ => false
   end.
 
 (* Maps a Checker to a Prop *)
@@ -118,14 +120,24 @@ Proof.
   move=> eq_res. 
   rewrite /mapTotalResult /mapRoseResult /mapProp/semCheckableSize /semCheckerSize. 
   split; rewrite semFmapSize. 
-  - move => H1 b [[[res l]] /= [H2 H3]].
-    rewrite -H3 eq_res. apply H1.
-    repeat (eexists; split; eauto).
-  - move => /= H1 b [[[res l]] /= [[[[res' l'] [/= H2 [H3 H4]]] H5]]]; subst.
-    rewrite <- H5, <- eq_res in *.  apply H1.
-    eexists. split; eauto. reflexivity.
+  - move => H1 b.
+    move => [[[[res l]| X io k] /= [H2 H3]]].
+    + rewrite -H3 eq_res. apply H1.
+      repeat (eexists; split; eauto).
+    + apply H1.
+      exists (MkProp (fmapRose f (IORose io k))).
+      split; eauto; eexists; split; eauto; reflexivity.
+  - move => /= H1 b [[[[res l]|]]].
+    + move => /= [[[ [[res' l'] [/= H2 [H3 H4]] H5
+                     | ? ? ? [] //]] ]]; subst.
+      rewrite <- H5, <- eq_res in *.  apply H1.
+      eexists. split; eauto. reflexivity.
+    + move => X io k [H2 H3].
+      apply H1.
+      elim: H2 => [[[[r_] //= [H4 [H5 H6]] //|]]].
+      move => X' io' r [].
+      eexists; split; eauto.
 Qed.
-
 
 Lemma mapTotalResult_id {C} `{Checkable C} (f : Result -> Result) (c : C) :
     (forall res, resultSuccessful res = resultSuccessful (f res)) ->
@@ -185,24 +197,22 @@ Lemma semShrinking_idSize {C A} {HCheck : Checkable C}
 Proof.
   unfold semCheckableSize, shrinking, semCheckerSize, semGenSize, props.
   have [n <-] : exists n, S n  = 1000 by eexists; reflexivity.
-  split.
-  - move => H b [[[res [l]]] [/= [seed Hgen] H']]; subst.
-    + suff :
-        successful
-          (run
-             (fmap
-                (fun x0 => {| unProp := joinRose (fmapRose unProp x0) |})
-                (promote (@props' _ _ HCheck (S n) pf sh x))) s seed).
-      setoid_rewrite runFmap. 
-      rewrite runPromote. simpl. rewrite Hgen -H' /=. 
-      move => -> //. 
-      rewrite <- H => //. eexists. split; try by reflexivity.
-      eexists. reflexivity.
-  - move => H b [[[r [l]]] /= [[seed H1] <-]]. apply H. 
-    rewrite runFmap runPromote /= in H1.
-    destruct ((run (checker (pf x)) s seed)) as [[res [l']]] eqn:Heq=> //=.
-    simpl in *. move : H1 => [H1 H2]; subst.
-    eexists. eexists. exists seed. reflexivity. rewrite Heq. reflexivity.
+  split; move => H b [[r [/= [seed Hseed] H']]];
+                   apply H.
+  - eexists.
+    split.
+    + eexists seed.
+      rewrite runFmap runPromote. simpl.
+      rewrite Hseed.
+      reflexivity.
+    + destruct r as [[]|]; auto.
+  - rewrite runFmap runPromote /= in Hseed.
+    inversion Hseed; subst; clear Hseed.
+    eexists.
+    split.
+    + exists seed.
+      reflexivity.
+    + destruct run as [[[]|]]; auto.
 Qed.
 
 Lemma semShrinking_id {C A} {HCheck : Checkable C}
@@ -616,7 +626,7 @@ Proof.
   split.
   - move => /(_ b) H. 
     suff : [set true] b by move => <- //.
-    eapply H. eexists (MkProp (MkRose (liftBool b) (lazy nil))).
+    eapply H. eexists (MkProp (returnRose (liftBool b))).
     split => //=. by rewrite -> (semReturnSize _ _ _). by eapply bool_successful.
   - move => Hb b' [qp [/semReturnSize <- <-]] /=.
     by rewrite bool_successful. 

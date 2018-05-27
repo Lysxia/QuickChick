@@ -159,7 +159,7 @@ Global Instance testChecker : Checkable Checker :=
  *)
 Fixpoint props' {prop A : Type} {t : Checkable prop} (n : nat)
          (pf : A -> prop) (shrinker : A -> list A) (x : A) :=
-  match n with
+  PureRose match n with
     | O =>
       MkRose (checker (pf x)) (lazy nil)
     | S n' =>
@@ -287,25 +287,25 @@ Definition addStamps' r result :=
   res.
 
 Fixpoint conjAux (f : Result -> Result) 
-         l := 
+         (l : list (Rose Result)) : Rose Result :=
   match l with 
-    | nil => (MkRose (f succeeded) (lazy nil))
-    | cons res rs => 
-      let '(MkRose r _) := res in
+    | nil => returnRose (f succeeded)
+    | cons res0 rs =>
+      mapRose_ res0 (fun '((MkRose r _) as res) =>
       match ok r with 
         | Some true =>
            (conjAux (fun r' => addStamps' r (addCallbacks' r (f r'))
                     ) rs)
-        | Some false => res
+        | Some false => PureRose res
         | None =>
-          let res' := conjAux (fun r' => (addCallbacks' r (f r'))) rs in
-          let '(MkRose r' rs) := res' in
+          let res0' := conjAux (fun r' => (addCallbacks' r (f r'))) rs in
+          mapRose_ res0' (fun '((MkRose r' rs) as res') => PureRose
           match ok r' with 
             | Some true => MkRose (updOk r' None) (lazy nil)
             | Some false => res'
             | None => res'
-          end
-      end
+          end)
+      end)
   end.
 
 Definition mapGen {A B} (f : A -> G B) (l : list A) : G (list B) :=
@@ -316,10 +316,7 @@ Definition mapGen {A B} (f : A -> G B) (l : list A) : G (list B) :=
 Fixpoint conjoin (l : list Checker) : Checker :=
 (*   trace ("Beginnning conjoin" ++ nl) ( *)
   bindGen (mapGen (liftGen unProp) l) (fun rs =>
-          (returnGen (MkProp (let res := conjAux (fun x => x) rs in
-                              let '(MkRose r _) := res in 
-                              (* debug_stamps "Conjoin result: " r *) res
-                             )))).
+          (returnGen (MkProp (conjAux (fun x => x) rs)))).
 
 Definition fmapRose' A B (r : Rose A) (f : A -> B) := fmapRose f r.
 
