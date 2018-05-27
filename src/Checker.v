@@ -231,11 +231,11 @@ Definition implication {prop : Type} `{Checkable prop} (b : bool) (p : prop) : C
 Definition forAll {A prop : Type} {_ : Checkable prop} `{Show A}
            (gen : G A)  (pf : A -> prop) : Checker :=
   bindGen gen (fun x =>
-                 printTestCase (show x ++ newline) (pf x)).
+                 printTestCase (show x) (pf x)).
 
 Definition forAllProof {A prop : Type} {C : Checkable prop} `{S : Show A}
            (gen : G A)  (pf : forall (x : A), semGen gen x -> prop) : Checker :=
-  bindGen' gen (fun x H => printTestCase (show x ++ newline) (pf x H)).
+  bindGen' gen (fun x H => printTestCase (show x) (pf x H)).
 Arguments forAllProof {A} {prop} {C} {S} _ _.
 
 Definition forAllShrink {A prop : Type} {_ : Checkable prop} `{Show A}
@@ -243,20 +243,20 @@ Definition forAllShrink {A prop : Type} {_ : Checkable prop} `{Show A}
 
   bindGen gen (fun x : A =>
                  shrinking shrinker x (fun x' =>
-                                         printTestCase (show x' ++ newline) (pf x'))).
+                                         printTestCase (show x') (pf x'))).
 
 Definition forAllShrinkNonDet {A prop : Type} {_ : Checkable prop} `{Show A}
            (n : nat) (gen : G A) (shrinker : A -> list A) (pf : A -> prop) : Checker :=
 
   bindGen gen (fun x : A =>
                  shrinkingNondet n shrinker x (fun x' =>
-                                         printTestCase (show x' ++ newline) (pf x'))).
+                                         printTestCase (show x') (pf x'))).
 
 Definition forAllShrinkShow {A prop : Type} {_ : Checkable prop}
            (gen : G A) (shrinker : A -> list A) (show' : A -> string) (pf : A -> prop) : Checker :=
   bindGen gen (fun x =>
                  shrinking shrinker x (fun x' =>
-                                         printTestCase (show' x' ++ newline) (pf x'))).
+                                         printTestCase (show' x') (pf x'))).
 
 Global Instance testFun {A prop : Type} `{Show A}
        `{Arbitrary A} `{_ : Checkable prop} : Checkable (A -> prop) :=
