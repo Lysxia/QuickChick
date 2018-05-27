@@ -6,6 +6,7 @@ Require Import mathcomp.ssreflect.ssreflect.
 From mathcomp Require Import ssrnat ssrbool eqtype div.
 
 Require Import SimpleIO.IOMonad.
+Require Import SimpleIO.CoqPervasives.
 
 From QuickChick Require Import RoseTrees RandomQC GenLow GenHigh SemChecker.
 From QuickChick Require Import Show Checker State Classes Term.
@@ -141,14 +142,14 @@ Definition doneTesting (st : State) (f : nat -> RandomSeed -> QProp) :
         | O => ""
         | S _ => " (" ++ show n_discard ++ " discards)"
         end in
-    (endline_term (terminal st) msg;;
+    (clear_output_term (terminal st) msg;;
      IOMonad.ret
        (Success (n_success + 1) n_discard (summary st) msg))%io
   else
     let msg :=
         "*** Failed! Passed " ++ show n_success ++
         " tests (expected failure)" in
-    (endline_term (terminal st) msg;;
+    (clear_output_term (terminal st) msg;;
      IOMonad.ret
        (NoExpectedFailure n_success (summary st) msg))%io.
   (* TODO: success st - labels *)
@@ -160,7 +161,7 @@ Definition giveUp (st : State) (_ : nat -> RandomSeed -> QProp) :
   let msg :=
       "*** Gave up! Passed only " ++ show n_success ++ " tests, " ++
       "discarded  " ++ show n_discard in
-  (endline_term (terminal st) msg;;
+  (clear_output_term (terminal st) msg;;
    IOMonad.ret (GaveUp n_success (summary st) msg)).
 
 Definition callbackPostTest
@@ -225,6 +226,7 @@ Fixpoint runATest (st : State) (f : nat -> RandomSeed -> QProp)
   if maxSteps is maxSteps'.+1 then
     let n_success := numSuccessTests st in
     let n_discard := numDiscardedTests st in
+    update_term (terminal st) (show n_success);;
     let size := (computeSize st) n_success n_discard in
     let (rnd1, rnd2) := randomSplit (randomSeed st) in
     let test (st : State) :=
@@ -310,7 +312,7 @@ Require Import ZArith.
 
 (* ZP: This was quickCheckResult before but since we always return result
        return result there is no reason for such distinction *)
-Definition quickCheckWith {prop : Type} {_ : Checkable prop}
+Definition quickCheckResult {prop : Type} {_ : Checkable prop}
            (a : Args) (p : prop) : IO Result :=
   (* ignore terminal - always use trace :D *)
   let (rnd, computeFun) :=
@@ -319,7 +321,8 @@ Definition quickCheckWith {prop : Type} {_ : Checkable prop}
         | None          => (newRandomSeed, computeSize' a)
         (* make it more random...? need IO action *)
       end in
-  test (MkState stdTerminal
+  withStdTerminal (fun tm =>
+  test (MkState tm
                 (maxSuccess a)  (* maxSuccessTests   *)
                 (maxDiscard a)  (* maxDiscardTests   *)
                 (maxShrinks a)  (* maxShrinks        *)
@@ -331,7 +334,7 @@ Definition quickCheckWith {prop : Type} {_ : Checkable prop}
                 rnd             (* randomSeed        *)
                 0               (* numSuccessShrinks *)
                 0               (* numTryShrinks     *)
-       ) (run (checker p)).
+       ) (run (checker p))).
 
 Fixpoint showCollectStatistics (l : list (string * nat)) :=
   match l with
@@ -348,6 +351,10 @@ Instance showResult : Show Result := Build_Show _ (fun r =>
   | NoExpectedFailure _ l s => showCollectStatistics l ++ s
   end ++ newline).
 
+Definition quickCheckWith {prop : Type} {_ : Checkable prop}
+           (a : Args) (p : prop) : IO unit :=
+  IOMonad.bind (quickCheckResult a p) (fun _ => IOMonad.ret tt).
+
 Definition quickCheck {prop : Type} {_ : Checkable prop}
-           (p : prop) : IO Result :=
+           (p : prop) : IO unit :=
   quickCheckWith stdArgs p.

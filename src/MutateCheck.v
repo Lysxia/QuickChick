@@ -69,7 +69,7 @@ Definition mutateCheckManyWith {A P : Type} {_: Checker.Checkable P}
   (fold_io
      (fun n m => match n with (n1,n2) =>
         kill <- existsb_io (fun c =>
-                  map_io found_bug (quickCheckWith args c)) (ps m);;
+                  map_io found_bug (quickCheckResult args c)) (ps m);;
         let n1' := n1 + (if kill then 1 else 0) in
         let msg := message kill n1' n2 in
         ret (Checker.trace msg (n1', n2 + 1))

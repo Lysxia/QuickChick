@@ -57,7 +57,7 @@ let link_files = []
 
 (* TODO: in Coq 8.5, fetch OCaml's path from Coq's configure *)
 (* FIX: There is probably a more elegant place to put this flag! *)
-let mk_ocaml = Printf.sprintf "ocamlfind %s -package pure-splitmix -linkpkg -unsafe-string"
+let mk_ocaml = Printf.sprintf "ocamlfind %s -package unix -package pure-splitmix -package coq-simple-io -linkpkg -unsafe-string"
 let ocamlopt = mk_ocaml "ocamlopt"
 let ocamlc = mk_ocaml "ocamlc"
 
@@ -127,13 +127,7 @@ let define_and_run c =
   (** Add a main function to get some output *)
   let oc = open_out_gen [Open_append;Open_text] 0o666 mlf in
   let for_output =
-    "\nlet _ = print_string (\n" ^
-    "let l = (" ^ (string_of_id main) ^ ") in\n"^
-    "let s = Bytes.create (List.length l) in\n" ^
-    "let rec copy i = function\n" ^
-    "| [] -> s\n" ^
-    "| c :: l -> s.[i] <- c; copy (i+1) l\n" ^
-    "in Bytes.to_string (copy 0 l))" in
+    "\nlet _ = CoqSimpleIO.Impure.run " ^ string_of_id main in
   Printf.fprintf oc "%s" for_output;
   close_out oc;
   (* Before compiling, remove stupid cyclic dependencies like "type int = int".
@@ -195,7 +189,6 @@ let runTest c =
   (** [c] is a constr_expr representing the test to run,
       so we first build a new constr_expr representing
       show c **)
-  let c = CAst.make @@ CApp((None,show), [(c,None)]) in
   (** Build the kernel term from the const_expr *)
   let env = Global.env () in
   let evd = Evd.from_env env in
