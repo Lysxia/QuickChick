@@ -105,7 +105,8 @@ Parameter foldGen :
   forall {A B : Type}, (A -> B -> G A) -> list B -> A -> G A.
 
 (* Run a generator on a particular random seed. *)
-Parameter run  : forall {A : Type}, G A -> nat -> RandomSeed -> A.
+Parameter run  : forall seed `{Splittable seed} {A : Type},
+    G A -> nat -> seed -> A.
 
 (* #################################################################### *)
 (** * Combinators borrowed from Haskell's QuickCheck *)
@@ -169,6 +170,8 @@ Declare Instance OrdBool : OrdType bool.
 Declare Instance OrdNat  : OrdType nat.
 Declare Instance OrdZ    : OrdType Z.
 
+(*
+
 (** We also expect the random function to be able to pick every element in any
     given interval. *)
 
@@ -184,6 +187,7 @@ Declare Instance ChooseZ : ChoosableFromInterval Z.
     extremes. It causes a runtime error if [r < l]. *)
 Parameter choose :
   forall {A : Type} `{ChoosableFromInterval A}, (A * A) -> G A.
+*)
 
 (* #################################################################### *)
 (** * Notations *)

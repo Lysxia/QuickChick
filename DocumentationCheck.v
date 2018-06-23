@@ -50,6 +50,8 @@ Module ConsistencyCheck : QuickChickSig.
   Definition OrdNat := OrdNat.
   Definition OrdZ := OrdZ.
 
+(*
+
   Class ChoosableFromInterval (A : Type)  :=
   {
     super :> OrdType A;
@@ -65,6 +67,7 @@ Module ConsistencyCheck : QuickChickSig.
   Definition ChooseZ := ChooseZ.
 
   Definition choose := @choose.
+*)
 
   Module QcDefaultNotation.
 (*

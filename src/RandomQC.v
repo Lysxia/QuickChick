@@ -63,6 +63,52 @@ Instance Splittable_State : Splittable SplitMix.State :=
 
 Definition newRandomSeed : SplitMix.State := SplitMix.of_seed 33.
 
+(* Type class machinery for generating things in intervals *)
+
+Class OrdType (A: Type) :=
+  {
+    leq     : A -> A -> bool;
+    refl    : reflexive leq;
+    trans   : transitive leq;
+    antisym : antisymmetric leq
+  }.
+
+Program Instance OrdBool : OrdType bool :=
+  {
+    leq b1 b2 := implb b1 b2
+  }.
+Next Obligation.
+  by case.
+Qed.
+Next Obligation.
+  by do 3! case.
+Qed.
+Next Obligation.
+  by do 2! case.
+Qed.
+
+Program Instance OrdNat : OrdType nat :=
+  {
+    leq := ssrnat.leq;
+    refl := leqnn;
+    trans := leq_trans;
+    antisym := anti_leq
+  }.
+
+Program Instance OrdZ : OrdType Z :=
+  {
+    leq := Z.leb;
+    refl := Z.leb_refl
+  }.
+Next Obligation.
+move=> x y z le_yx le_xz.
+exact: (Zle_bool_trans y x z).
+Qed.
+Next Obligation.
+move=> x y /andP[].
+exact: Zle_bool_antisym.
+Qed.
+
 (*
 (* We axiomatize a random number generator
    (currently written in OCaml only) *)
@@ -733,52 +779,6 @@ Module InfiniteTrees.
   Qed.
 End InfiniteTrees.
 
-
-(* Type class machinery for generating things in intervals *)
-
-Class OrdType (A: Type) :=
-  {
-    leq     : A -> A -> bool;
-    refl    : reflexive leq;
-    trans   : transitive leq;
-    antisym : antisymmetric leq
-  }.
-
-Program Instance OrdBool : OrdType bool :=
-  {
-    leq b1 b2 := implb b1 b2
-  }.
-Next Obligation.
-  by case.
-Qed.
-Next Obligation.
-  by do 3! case.
-Qed.
-Next Obligation.
-  by do 2! case.
-Qed.
-
-Program Instance OrdNat : OrdType nat :=
-  {
-    leq := ssrnat.leq;
-    refl := leqnn;
-    trans := leq_trans;
-    antisym := anti_leq
-  }.
-
-Program Instance OrdZ : OrdType Z :=
-  {
-    leq := Z.leb;
-    refl := Z.leb_refl
-  }.
-Next Obligation.
-move=> x y z le_yx le_xz.
-exact: (Zle_bool_trans y x z).
-Qed.
-Next Obligation.
-move=> x y /andP[].
-exact: Zle_bool_antisym.
-Qed.
 
 Class ChoosableFromInterval (A : Type)  :=
   {
