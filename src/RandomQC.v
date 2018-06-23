@@ -5,6 +5,50 @@ Require Import mathcomp.ssreflect.ssreflect.
 From mathcomp Require Import ssrfun ssrbool ssrnat eqtype.
 Require Import ZArith.
 
+Class Splittable (seed : Type) : Type := {
+  split : seed -> seed * seed;
+  randomN : seed -> positive -> N;
+  randomBool : seed -> bool;
+}.
+
+Module InfiniteTrees.
+  CoInductive Tree : Type :=
+  | Node : Tree -> Tree -> (positive -> N) -> bool -> Tree.
+
+  CoFixpoint defaultTree : Tree :=
+    Node defaultTree defaultTree (fun _ => 0%N) true.
+
+  Lemma inhabitedTree : inhabited Tree.
+  Proof.
+    constructor.
+    exact defaultTree.
+  Qed.
+
+  Instance Splittable_Tree : Splittable Tree := {|
+    split := fun '(Node t1 t2 _ _) => (t1, t2);
+    randomN := fun '(Node _ _ f _) => f;
+    randomBool := fun '(Node _ _ _ b) => b;
+  |}.
+
+  CoFixpoint seedToTree {seed} `{Splittable seed} (s : seed) :=
+      let ss := split s in
+      Node (seedToTree (fst ss)) (seedToTree (snd ss))
+           (randomN s) (randomBool s).
+
+  Definition cosplit (ts : Tree * Tree) : Tree :=
+    Node (fst ts) (snd ts) (fun _ => 0%N) true.
+
+  Definition corandomN (f : positive -> N) : Tree :=
+    Node defaultTree defaultTree f true.
+
+  Definition corandomBool (b : bool) : Tree :=
+    Node defaultTree defaultTree (fun _ => 0%N) b.
+
+  Lemma cosplit_compat ss : split (cosplit ss) = ss.
+  Proof. destruct ss; reflexivity. Qed.
+End InfiniteTrees.
+
+(*
 (* We axiomatize a random number generator
    (currently written in OCaml only) *)
 Axiom RandomSeed : Type.
@@ -748,3 +792,4 @@ Instance ChooseZ : ChoosableFromInterval Z :=
     randomR := randomRInt;
     randomRCorrect := ramdomRIntCorrect
   }.
+*)

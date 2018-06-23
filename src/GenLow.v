@@ -32,9 +32,11 @@ Definition isNone {T : Type} (u : option T) :=
     | None => true
   end.
 
-Lemma randomSplit_codom : codom randomSplit <--> setT.
+Lemma randomSplit_codom : @codom InfiniteTrees.Tree _ split <--> setT.
 Proof.
-by apply/subset_eqP; split=> // [[s1 s2]] _; apply: randomSplitAssumption.
+  assert (assum : forall ss, exists s, split s = ss).
+  { intro ss; eexists; apply InfiniteTrees.cosplit_compat. }
+  by apply/subset_eqP; split=> // [[s1 s2]] _; apply: assum.
 Qed.
 
 (* We hide the implementation of generators behind this interface. The
@@ -43,39 +45,36 @@ Qed.
    tries to follow this code organization/abstraction. We need to
    expose quite a bit on the proof side for this to work though. *)
 Module Type GenLowInterface.
-
   (** * Type of generators *)
 
   Parameter G : Type -> Type.
 
   (** * Primitive generator combinators *)
 
-  Parameter returnGen  : forall {A : Type}, A -> G A.
+  Parameter returnGen : forall {A : Type}, A -> G A.
   (* TODO: Add dependent combinator *)
-  Parameter bindGen :  forall {A B : Type}, G A -> (A -> G B) -> G B.
-  Parameter bindGenOpt : forall {A B : Type}, G (option A) -> (A -> G (option B)) -> G (option B).
-  Parameter run  : forall {A : Type}, G A -> nat -> RandomSeed -> A.
+  Parameter bindGen : forall {A B : Type},
+      G A -> (A -> G B) -> G B.
+  Parameter bindGenOpt : forall {A B : Type},
+      G (option A) -> (A -> G (option B)) -> G (option B).
+  Parameter run  : forall seed `{Splittable seed} {A : Type},
+      G A -> nat -> seed -> A.
   Parameter fmap : forall {A B : Type}, (A -> B) -> G A -> G B.
   Parameter sized : forall {A: Type}, (nat -> G A) -> G A.
   Parameter resize : forall {A: Type}, nat -> G A -> G A.
   Parameter promote : forall {A : Type}, Rose (G A) -> G (Rose A).
-  Parameter suchThatMaybe : forall {A : Type}, G A -> (A -> bool) ->
-                                          G (option A).
-  Parameter suchThatMaybeOpt : forall {A : Type}, G (option A) -> (A -> bool) ->
-                                             G (option A).
-  Parameter choose : forall {A : Type} `{ChoosableFromInterval A}, (A * A) -> G A.
-  Parameter sample : forall {A : Type}, G A -> list A.
-
+  Parameter suchThatMaybe : forall {A : Type},
+      G A -> (A -> bool) -> G (option A).
+  Parameter suchThatMaybeOpt : forall {A : Type},
+      G (option A) -> (A -> bool) -> G (option A).
+  Parameter choose : positive -> G N.
+  (* Parameter sample : forall {A : Type}, G A -> list A. *)
 
   (* LL: The abstraction barrier is annoying :D *)
-  Parameter variant : forall {A : Type}, SplitPath -> G A -> G A.
+(*
+  Parameter variant : forall `{Splittable seed} {A : Type}, SplitPath -> G A -> G A.
+*)
   Parameter reallyUnsafePromote : forall {r A:Type}, (r -> G A) -> G (r -> A).
-
-  Parameter promoteVariant : forall {A B : Type} (a : A) (f : A -> SplitPath) (g : G B) size 
-                               (r r1 r2 : RandomSeed),
-                               randomSplit r = (r1,r2) ->                              
-                               run (reallyUnsafePromote (fun a => variant (f a) g)) size r a = 
-                               run g size (varySeed (f a) r1).
 
   (** * Semantics of generators *)
 
@@ -86,7 +85,7 @@ Module Type GenLowInterface.
     \bigcup_size semGenSize g size.
 
   Parameter bindGen' : forall {A B : Type} (g : G A), 
-                       (forall (a : A), (a \in semGen g) -> G B) -> G B. 
+      (forall (a : A), (a \in semGen g) -> G B) -> G B.
 
   Arguments bindGen' [A] [B] _ _.
 
@@ -99,7 +98,7 @@ Module Type GenLowInterface.
       unsized : forall s1 s2, semGenSize g s1 <--> semGenSize g s2
     }.
   (* end Unsized *)
-  
+
   (** Sized generators monotonic in the size parameter *)
   Class SizedMonotonic {A} (g : nat -> G A) :=
     {
@@ -138,7 +137,7 @@ Module Type GenLowInterface.
       monotonic_none :
         forall s1 s2, s1 <= s2 -> isNone :&: semGenSize g s2 \subset isNone :&: semGenSize g s1
     }.
-  
+
   (* CH: Why does Unsized need a _ when A is marked as implict! *)
   Parameter unsized_alt_def :
     forall A (g : G A) `{Unsized _ g},
@@ -150,7 +149,7 @@ Module Type GenLowInterface.
   
 
   (** *  Semantics of combinators *)
-  
+
   Parameter semReturn :
     forall A (x : A), semGen (returnGen x) <--> [set x].
   Parameter semReturnSize :
@@ -286,6 +285,7 @@ Module Type GenLowInterface.
           {A B} (f : A -> B) (g : G A) `{SizeMonotonic _ g} : 
     SizeMonotonic (fmap f g).
 
+(*
   Parameter semChoose :
     forall A `{ChoosableFromInterval A} (a1 a2 : A),
       RandomQC.leq a1 a2 ->
@@ -299,6 +299,14 @@ Module Type GenLowInterface.
 
   Declare Instance chooseUnsized A `{ChoosableFromInterval A} (a1 a2 : A) : 
     Unsized (choose (a1, a2)).
+*)
+
+  Parameter semChoose :
+    forall n, semGen (choose n) <--> [set m | m < Npos n].
+
+  Parameter semChooseSize :
+    forall n size,
+      semGenSize (choose n) size <--> [set m | m < Npos n].
 
   Parameter semSized :
     forall A (f : nat -> G A),
@@ -405,8 +413,8 @@ Module Type GenLowInterface.
     forall (A : Type) (m : Rose (G A)) n,
       semGenSize (promote m) n <-->
       (fun t : Rose A =>
-         exists (seed : RandomSeed),
-           fmapRose (fun g : G A => run g n seed) m = t).
+         exists (s : _),
+           fmapRose (fun g : G A => run g n s) m = t).
 
   (* Those are too concrete, but I need them to prove shrinking.
    Does this reveal a weakness in our framework?
@@ -439,34 +447,47 @@ Module Type GenLowInterface.
     ret A x := returnGen (Some x);
     bind A B m k := bindGenOpt m k
   }.
-  
+
+(*
+  Parameter promoteVariant :
+    forall `{Splittable seed} {A B : Type} (a : A) (f : A -> SplitPath) (g : G B) size
+           (r r1 r2 : seed),
+      split r = (r1,r2) ->
+      run (reallyUnsafePromote (fun a => variant (f a) g)) size r a =
+      run g size (varySeed (f a) r1). *)
+
 End GenLowInterface.
 
-Module GenLow : GenLowInterface.
-
+Module GenLow <: GenLowInterface.
   (** * Type of generators *)
 
   (* begin GenType *)
-  Inductive GenType (A:Type) : Type := MkGen : (nat -> RandomSeed -> A) -> GenType A.
+  Inductive GenType (A : Type) : Type :=
+    MkGen :
+      (forall seed, Splittable seed -> nat -> seed -> A) -> GenType A.
   (* end GenType *)
-  
+
   Definition G := GenType.
 
   (** * Primitive generator combinators *)
   
   (* begin run *)
-  Definition run {A : Type} (g : G A) := match g with MkGen f => f end.
+  Definition run seed `{Splittable seed} {A : Type} :
+    GenType A -> nat -> seed -> A := fun '(MkGen g) => g _ _.
   (* end run *)
   
   Definition returnGen {A : Type} (x : A) : G A :=
-    MkGen (fun _ _ => x).
-  
-  Definition bindGen {A B : Type} (g : G A) (k : A -> G B) : G B :=
-    MkGen (fun n r =>
-             let (r1,r2) := randomSplit r in
+    MkGen (fun _ _ _ _ => x).
+
+  Definition bindGen
+             {A B : Type} (g : G A) (k : A -> G B) : G B :=
+    MkGen (fun _ _ n r =>
+             let (r1, r2) := split r in
              run (k (run g n r1)) n r2).
 
-  Definition bindGenOpt {A B} (g : G (option A)) (f : A -> G (option B)) : G (option B) :=
+  Definition bindGenOpt
+             {A B} (g : G (option A)) (f : A -> G (option B)) :
+    G (option B) :=
     bindGen g (fun ma => 
                  match ma with
                    | None => returnGen None
@@ -474,22 +495,21 @@ Module GenLow : GenLowInterface.
                  end).
   
   Definition fmap {A B : Type} (f : A -> B) (g : G A) : G B :=
-    MkGen (fun n r => f (run g n r)).
+    MkGen (fun _ _ n r => f (run g n r)).
   
   Definition sized {A : Type} (f : nat -> G A) : G A :=
-    MkGen (fun n r => run (f n) n r).
+    MkGen (fun _ _ n r => run (f n) n r).
   
   Definition resize {A : Type} (n : nat) (g : G A) : G A :=
-    match g with
-      | MkGen m => MkGen (fun _ => m n)
-    end.
+    MkGen (fun _ _ _ => run g n).
   
   Definition promote {A : Type} (m : Rose (G A)) : G (Rose A) :=
-    MkGen (fun n r => fmapRose (fun g => run g n r) m).
+    MkGen (fun _ _ n r => fmapRose (fun g => run g n r) m).
   
   (* ZP: Split suchThatMaybe into two different functions
      to make a proof easier *)
-  Definition suchThatMaybeAux {A : Type} (g : G A) (p : A -> bool) :=
+  Definition suchThatMaybeAux
+             {A : Type} (g : G A) (p : A -> bool) :=
     fix aux (k : nat) (n : nat) : G (option A) :=
     match n with
       | O => returnGen None
@@ -499,11 +519,13 @@ Module GenLow : GenLowInterface.
                                           else aux (S k) n')
     end.
 
-  Definition suchThatMaybe {A : Type} (g : G A) (p : A -> bool)
+  Definition suchThatMaybe
+             {A : Type} (g : G A) (p : A -> bool)
   : G (option A) :=
     sized (fun x => suchThatMaybeAux g p 0 (max 1 x)).
 
-  Definition suchThatMaybeOptAux {A : Type} (g : G (option A)) (p : A -> bool) :=
+  Definition suchThatMaybeOptAux
+             {A : Type} (g : G (option A)) (p : A -> bool) :=
     fix aux (k : nat) (n : nat) : G (option A) :=
     match n with
       | O => returnGen None
@@ -516,15 +538,17 @@ Module GenLow : GenLowInterface.
                         end)
     end.
 
-  Definition suchThatMaybeOpt {A : Type} (g : G (option A)) (p : A -> bool)
+  Definition suchThatMaybeOpt
+             {A : Type} (g : G (option A)) (p : A -> bool)
   : G (option A) := 
     sized (fun x => suchThatMaybeOptAux g p 0 (max 1 x)).
 
-  Fixpoint rnds (rnd : RandomSeed) (n' : nat) : list RandomSeed :=
+  Fixpoint rnds seed `{Splittable seed}
+           (rnd : seed) (n' : nat) : list seed :=
     match n' with
       | O => nil
       | S n'' =>
-        let (rnd1, rnd2) := randomSplit rnd in
+        let (rnd1, rnd2) := split rnd in
         cons rnd1 (rnds rnd2 n'')
     end.
   
@@ -533,7 +557,8 @@ Module GenLow : GenLowInterface.
       | O => List.rev (cons O acc)
       | S n' => createRange n' (cons n acc)
     end.
-  
+
+(*
   Definition choose {A : Type} `{ChoosableFromInterval A} (range : A * A) : G A :=
     MkGen (fun _ r => fst (randomR range r)).
   
@@ -544,44 +569,60 @@ Module GenLow : GenLowInterface.
         let l := List.combine (rnds rnd 20) (createRange 10 nil) in
         List.map (fun (p : RandomSeed * nat) => let (r,n) := p in m n r) l
     end.
+*)
+
+  Definition choose (upper_bound : positive) : G N.
+  Admitted.
   
   (* LL : Things that need to be in GenLow because of MkGen *)
-  
+
+(*
   Definition variant {A : Type} (p : SplitPath) (g : G A) : G A := 
     match g with 
       | MkGen f => MkGen (fun n r => f n (varySeed p r))
     end.
+*)
   
   Definition reallyUnsafeDelay {A : Type} : G (G A -> A) :=
-    MkGen (fun r n g => (match g with MkGen f => f r n end)).
-  
-  Definition reallyUnsafePromote {r A : Type} (m : r -> G A) : G (r -> A) :=
-    (bindGen reallyUnsafeDelay (fun eval => 
-                                  returnGen (fun r => eval (m r)))).
+    MkGen (fun _ _ n r g => run g n r).
+
+  Definition reallyUnsafePromote
+             {A B : Type} (m : A -> G B) : G (A -> B) :=
+    MkGen (fun _ _ n r x => run (m x) n r).
 
   (* End Things *)
+
+  (* Parametricity theorem for [GenType]. *)
+  Axiom parametricGen :
+    forall {A : Type} (g : GenType A),
+    forall seed `(Splittable seed) (n : nat) (r : seed),
+      let r0 := InfiniteTrees.seedToTree r in
+      run g n r0 = run g n r.
 
   (** * Semantics of generators *)
 
   (* Set of outcomes semantics definitions (repeated above) *)
   (* begin semGen *)
-  Definition semGenSize {A : Type} (g : G A) (s : nat) : set A := codom (run g s).
+  Definition semGenSize {A : Type} (g : G A) (s : nat) : set A :=
+    codom (run g s : InfiniteTrees.Tree -> _).
+
   Definition semGen {A : Type} (g : G A) : set A := \bigcup_s semGenSize g s.
   (* end semGen *)
 
   (* More things *)
-  Definition bindGen_aux {A : Type} (g : G A) (n : nat) (r : RandomSeed) : semGen g (run g n r).
-    unfold semGen, semGenSize, codom, bigcup.
+  Definition bindGen_aux seed `{Splittable seed}
+             {A : Type} (g : G A) (n : nat) (r : seed) :
+    semGen g (run g n r).
     exists n; split => //=.
-    exists r; auto.
+    exists (InfiniteTrees.seedToTree r).
+    rewrite parametricGen.
+    reflexivity.
   Qed.
 
   Definition bindGen' {A B : Type} (g : G A) (k : forall (a : A), (a \in semGen g) -> G B) : G B :=
-    MkGen (fun n r =>
-             let (r1,r2) := randomSplit r in
+    MkGen (fun _ _ n r =>
+             let (r1,r2) := split r in
              run (k (run g n r1) (bindGen_aux g n r1)) n r2).
-
-  
 
   (** * Semantic properties of generators *)
 
@@ -634,14 +675,14 @@ Module GenLow : GenLowInterface.
   Proof.
     constructor. intros s1 s2 Hleq.
     rewrite /unsized /monotonic => a H12.
-      by destruct (unsized s1 s2 a) as [H1 H2]; eauto.
+      by destruct (unsized s1 s2 a) as [? ?]; eauto.
   Qed.
   
   Lemma unsized_alt_def :
     forall A (g : G A) `{Unsized _ g},
     forall s, semGenSize g s <--> semGen g.
   Proof.
-    move => A f H s a. split.
+    move => A f ? s a. split.
     move => H'. exists s. split; auto => //.
     move => [s' [_ H']]. eapply unsized; eauto.
   Qed.
@@ -652,8 +693,9 @@ Module GenLow : GenLowInterface.
   Lemma semReturn {A} (x : A) : semGen (returnGen x) <--> [set x].
   (* end semReturn *)
   Proof.
-    rewrite /semGen /semGenSize /= bigcup_const ?codom_const //.
-            exact: randomSeed_inhabited.
+    rewrite /semGen /semGenSize /= bigcup_const ?codom_const.
+    done.
+    exact: InfiniteTrees.inhabitedTree.
       by do 2! constructor.
   Qed.
   
@@ -662,7 +704,9 @@ Module GenLow : GenLowInterface.
   semGenSize (returnGen x) s <--> [set x].
   (* end semReturnSize *)
   Proof.
-      by rewrite /semGenSize /= codom_const //; apply: randomSeed_inhabited.
+      rewrite /semGenSize /= codom_const.
+      done.
+      exact: InfiniteTrees.inhabitedTree.
   Qed.
   
   Program Instance unsizedReturn {A} (x : A) : Unsized (returnGen x).
@@ -741,7 +785,7 @@ Module GenLow : GenLowInterface.
     Unsized (bindGen g f).
   Next Obligation.
     rewrite !semBindSize !unsized_alt_def. move => b. 
-    split; move => [a [H1 H2]]; exists a; split => //; by eapply unsized; eauto.
+    split; move => [a [? ?]]; exists a; split => //; by eapply unsized; eauto.
   Qed.
   
   Program Instance bindMonotonic
@@ -749,7 +793,7 @@ Module GenLow : GenLowInterface.
     SizeMonotonic (bindGen g f).
   Next Obligation.
     rewrite !semBindSize. move => b.
-    move => [a [H3 H4]]; exists a; split => //; eapply monotonic; eauto.
+    move => [a [? ?]]; exists a; split => //; eapply monotonic; eauto.
   Qed.
 
   Program Instance bindMonotonicOpt
@@ -793,7 +837,7 @@ Module GenLow : GenLowInterface.
     SizeMonotonic (bindGen g f).
   Next Obligation.
     rewrite !semBindSize. move => b.
-    move => [a [H3 H4]]; exists a; split => //.
+    move => [a [? ?]]; exists a; split => //.
     now eapply monotonic; eauto.
     eapply H0.
     eexists. split; eauto. now constructor.
@@ -894,7 +938,7 @@ Module GenLow : GenLowInterface.
     intros H1 H2 [x |] [s [_ [r H]]]; [| right; reflexivity ].
     left.
     eexists; split; [| reflexivity ].
-    simpl in H. destruct (randomSplit r) as [r1 r2] eqn:Heq.
+    simpl in H. destruct r as [r1 r2] eqn:Heq.
     destruct (run g s r1) eqn:Heq2; try discriminate.
     eexists a. 
     split.
@@ -916,7 +960,7 @@ Module GenLow : GenLowInterface.
     intros H1 H2 [x |] [s [_ [r H]]]; [| right; reflexivity ].
     left.
     eexists; split; [| reflexivity ].
-    simpl in H. destruct (randomSplit r) as [r1 r2] eqn:Heq.
+    simpl in H. destruct r as [r1 r2] eqn:Heq.
     destruct (run (f (run g s r1)) s r2) eqn:Heq2; try discriminate.
     inv H. eexists (run g s r1). split.
     eapply H1. eexists; split; [| eexists; reflexivity ].
@@ -954,8 +998,8 @@ Module GenLow : GenLowInterface.
     edestruct Hin1' as [_ [r1 Hr1]].
     edestruct Hin2' as [_ [r2 Hr2]].
     eexists (s + s'). split; [ now constructor |].
-    edestruct (randomSplitAssumption r1 r2) as [r'' Heq].
-    eexists r''. simpl. rewrite Heq.
+    exists (InfiniteTrees.cosplit (r1, r2)).
+    simpl.
     rewrite Hr1 Hr2. reflexivity.
   Qed.
 
@@ -983,8 +1027,8 @@ Module GenLow : GenLowInterface.
     edestruct Hgen as [r1 Hr1].
     edestruct Hin2' as [_ [r2 Hr2]].
     eexists (s + s'). split; [ now constructor |].
-    edestruct (randomSplitAssumption r1 r2) as [r'' Heq].
-    eexists r''. simpl. rewrite Heq.
+    exists (InfiniteTrees.cosplit (r1, r2)).
+    simpl.
     rewrite Hr1 Hr2. reflexivity.
   Qed.
   
@@ -1031,7 +1075,8 @@ Module GenLow : GenLowInterface.
     rewrite !semFmapSize. move => b.
     move => [a [H1 <-]]; eexists; split; eauto => //; eapply monotonic; eauto.
   Qed.
-  
+
+(*
   Lemma semChooseSize A `{ChoosableFromInterval A} (a1 a2 : A) :
     RandomQC.leq a1 a2 ->
     forall size, semGenSize (choose (a1,a2)) size <-->
@@ -1049,6 +1094,19 @@ Module GenLow : GenLowInterface.
     move=> /= le_a1a2. rewrite <- (unsized_alt_def 1).
     move => m /=. rewrite (randomRCorrect m a1 a2) //.
   Qed.
+*)
+
+  Lemma semChooseSize (upper_bound : positive) (size : nat) :
+    semGenSize (choose upper_bound) size <-->
+    [set m | m < Npos upper_bound].
+  Proof.
+  Admitted.
+
+  Lemma semChoose (upper_bound : positive) :
+    semGen (choose upper_bound) <-->
+    [set m | m < Npos upper_bound].
+  Proof.
+  Admitted.
 
   Lemma semSized A (f : nat -> G A) :
     semGen (sized f) <--> \bigcup_n semGenSize (f n) n.
@@ -1159,11 +1217,10 @@ Module GenLow : GenLowInterface.
     elim : n k => [| n IHn ] k /= H.
     - eapply semReturnSize in H; inv H.
     - eapply semBindSize in H. destruct H as [a [Hg Hf]].
-      eapply semSizeResize with (g := g) in Hg. destruct a.
+      destruct a.
       + destruct (p a) eqn:heq.
         * eapply semReturnSize in Hf. inv Hf. eexists.
-          split; [| split; [| split; [ eassumption | now eauto ] ]];
-            by ssromega.
+          split; [ eapply leqnn | split; [ ssromega | split; auto ]].
         * edestruct IHn as [s' [Hleq1 [Hleq2 [Hgen Hp]]]]. eassumption.
           eexists. 
           repeat split; try eassumption. ssromega. ssromega.
@@ -1180,10 +1237,10 @@ Module GenLow : GenLowInterface.
     elim : n k => [| n IHn ] k /= H.
     - eapply semReturnSize in H; inv H.
     - eapply semBindSize in H. destruct H as [a [Hg Hf]].
-      eapply semSizeResize with (g := g) in Hg. destruct a.
+      destruct a.
       + destruct (p a) eqn:heq.
         * eapply semReturnSize in Hf. inv Hf. eexists.
-          split; [| split; [| split; [ eassumption | split; [ now eauto |] ] ]];
+          split; [ apply leqnn | split; [| split; [ eassumption | split; [ now eauto |] ] ]];
           try intros; by ssromega.
         * edestruct IHn as [s' [Hleq1 [Hleq2 [Hgen [Hp Hstrong]]]]]. eassumption.
           eexists. 
@@ -1204,7 +1261,7 @@ Module GenLow : GenLowInterface.
   Lemma semGenSizeInhabited {A} (g : G A) s :
     exists x, semGenSize g s x.
   Proof.
-    destruct randomSeed_inhabited as [r].
+    destruct InfiniteTrees.inhabitedTree as [r].
     eexists (run g s r ). unfold semGenSize, codom.
     exists r. reflexivity.
   Qed.
@@ -1214,9 +1271,9 @@ Module GenLow : GenLowInterface.
       run (suchThatMaybeOptAux g p k n) size seed = Some a ->
       (exists s, s >= 2*k + n /\ (Some a) \in semGenSize g s :&: (Some @: p)).
   Proof.
-    case=> g p k n; elim: n k =>  [//=| n IHn] k a size seed /=.
-    case: (randomSplit seed) => r1 r2 Hrun.
-    destruct (g (2 * k + n.+1) r1) as [a' |] eqn:Heq.
+    case=> g p k n; elim: n k =>  [//=| n IHn] k a size s' /=.
+    case: s' => r1 r2 ? ? Hrun.
+    destruct (g _ _ (2 * k + n.+1) r1) as [a' |] eqn:Heq.
     - destruct (p a') eqn:Hpa.
       + inv Hrun.
         eexists (2 * k + n.+1). split. by ssromega.
@@ -1243,7 +1300,7 @@ Module GenLow : GenLowInterface.
     destruct x as [x | ]; try discriminate. inv Hs.
     case : n k Hleq1 Hleq2 => [//= | n] k Hleq1 Hleq2.
     simpl. eapply semBindSize.
-    exists (Some x). split. eapply semSizeResize.
+    exists (Some x). split.
     have [_ Ha] : (isSome :&: semGenSize g (2 * k + n.+1)) (Some x).
     { eapply Hmon; [| split; eauto ]. by ssromega. }
     eassumption.
@@ -1262,10 +1319,10 @@ Module GenLow : GenLowInterface.
    - constructor. intros s1 s2.
      simpl.
      rewrite !semBindSize. eapply eq_bigcup'.
-     rewrite !semSizeResize. now apply subset_refl.
+     now apply subset_refl.
      intros x. destruct x.
      destruct (p a).
-     rewrite !semReturnSize. now apply subset_refl.
+     now apply subset_refl.
      eapply IHn. eapply IHn.
   Qed.
 
@@ -1353,11 +1410,10 @@ Module GenLow : GenLowInterface.
     - intros x [H1 H2]. split; eauto.
       simpl in H2. 
       eapply semBindSize in H2. destruct H2 as [ a[Hg Hf]].
-      eapply semSizeResize with (g := g) in Hg. 
       destruct n2; [ now ssromega |].
       + simpl. eapply semBindSize. eexists.
-        split. eapply semSizeResize with (g := g).
-        eapply Hmon; [| eassumption ]. by ssromega.
+        split.
+        eapply Hmon; [| exact Hg ]. by ssromega.
         destruct (p a).
         * eassumption.
         * eapply IHn; eauto.
@@ -1373,7 +1429,7 @@ Module GenLow : GenLowInterface.
     intros A p g1 g2 n k H2 s.
     elim : n k => [| n IHn ] k.
     - now apply subset_refl.
-    - simpl. rewrite !semBindSize !semSizeResize.
+    - simpl. rewrite !semBindSize.
       eapply incl_bigcup_compat.
       + eapply H2.
       + intros x. destruct (p x); [ now apply subset_refl |].
@@ -1385,8 +1441,9 @@ Module GenLow : GenLowInterface.
       run (suchThatMaybeAux g p k n) size seed = Some a ->
       a \in semGen g :&: p.
   Proof.
-    case=> g p k n; elim: n k =>  [//=| n IHn] k a size seed /=.
-    case: (randomSplit seed) => r1 r2; case: ifP=> [/= ? [<-]|_]; last exact: IHn.
+    case=> g p k n; elim: n k =>  [//=| n IHn] k a size s' /=.
+    case: s' => r1 r2 ? ?.
+    case: ifP => [/= ? [<-]| _]; last exact: IHn.
       by split=> //; exists (2 * k + n.+1); split=> //; exists r1.
   Qed.
 
@@ -1403,9 +1460,9 @@ Module GenLow : GenLowInterface.
       run (suchThatMaybeOptAux g p k n) size seed = Some a ->
       (Some a) \in semGen g :&: (Some @: p).
   Proof.
-    case=> g p k n; elim: n k =>  [//=| n IHn] k a size seed /=.
-                                             case: (randomSplit seed) => r1 r2 Hrun.
-    destruct (g (2 * k + n.+1) r1) as [a' |] eqn:Heq.
+    case=> g p k n; elim: n k =>  [//=| n IHn] k a size s' /=.
+    case: s' => r1 r2 ? ? Hrun.
+    destruct (g _ _ (2 * k + n.+1) r1) as [a' |] eqn:Heq.
     - destruct (p a') eqn:Hpa.
       + inv Hrun.
         split. eexists (2 * k + n.+1). split. constructor.
@@ -1488,10 +1545,11 @@ Module GenLow : GenLowInterface.
     apply/leP. by eapply Max.le_max_r. 
     split; eauto.  eexists; split; eauto.
   Qed.
-  
+
+(*
   Lemma promoteVariant :
     forall {A B : Type} (a : A) (f : A -> SplitPath) (g : G B) size
-      (r r1 r2 : RandomSeed),
+      (r r1 r2 : seed),
       randomSplit r = (r1, r2) ->
       run (reallyUnsafePromote (fun a => variant (f a) g)) size r a = 
       run g size (varySeed (f a) r1).
@@ -1500,6 +1558,7 @@ Module GenLow : GenLowInterface.
     rewrite /reallyUnsafePromote /variant.
     destruct g. rewrite /= H. by [].
   Qed.
+*)
 
   Lemma semPromote A (m : Rose (G A)) :
     semGen (promote m) <-->
@@ -1511,10 +1570,10 @@ Module GenLow : GenLowInterface.
                codom (fun seed => fmapRose (fun g => run g n seed) m).
   Proof. by []. Qed.
 
-  Lemma runFmap (A B : Type) (f : A -> B) (g : G A) seed size :
-    run (fmap f g) seed size = f (run g seed size).
+  Lemma runFmap (A B : Type) (f : A -> B) (g : G A) s size :
+    run (fmap f g) s size = f (run g s size).
   Proof. by []. Qed.
-  
+
   Lemma runPromote A (m : Rose (G A)) seed size :
     run (promote m) seed size = fmapRose (fun (g : G A) => run g seed size) m.
   Proof. by []. Qed.
@@ -1656,5 +1715,5 @@ Module GenLow : GenLowInterface.
     ret A x := returnGen (Some x);
     bind A B m k := bindGenOpt m k
   }.
-  
+
 End GenLow.
