@@ -189,7 +189,7 @@ Proof.
   - move => H b [[[res [l]]] [/= [seed Hgen] H']]; subst.
     + suff :
         successful
-          (run
+          (@run _ RandomQC.InfiniteTrees.Splittable_Tree _
              (fmap
                 (fun x0 => {| unProp := joinRose (fmapRose unProp x0) |})
                 (promote (@props' _ _ HCheck (S n) pf sh x))) s seed).
@@ -199,7 +199,6 @@ Proof.
       rewrite <- H => //. eexists. split; try by reflexivity.
       eexists. reflexivity.
   - move => H b [[[r [l]]] /= [[seed H1] <-]]. apply H. 
-    rewrite runFmap runPromote /= in H1.
     destruct ((run (checker (pf x)) s seed)) as [[res [l']]] eqn:Heq=> //=.
     simpl in *. move : H1 => [H1 H2]; subst.
     eexists. eexists. exists seed. reflexivity. rewrite Heq. reflexivity.
@@ -629,7 +628,8 @@ Proof.
   (* CH: brute-force, please fix 
      ZP : better now? We do case analysis on b bun in a lemma; 
           I don't think we can avoid it *)
-  split; [move => /(_ 0) H | move => H s]; eapply semCheckableBoolSize; eauto.
+  split; [move => /(_ 0) H | move => H s];
+    eapply semCheckableBoolSize with (size := 0); eauto.
 Qed.
  
 Program Instance boolUnsized (b : bool) : UnsizedChecker (checker b).
@@ -654,7 +654,7 @@ Lemma semCheckableResult :
   forall (res: Result),
     semCheckable res  <-> resultSuccessful res.
 Proof.
-  split; [move => /(_ 0) H | move => H s]; eapply semCheckableResultSize; eauto.
+  split; [move => /(_ 0) H | move => H s]; eapply semCheckableResultSize with (size := 0); eauto.
 Qed.
 
 Program Instance resultUnsized (r : Result) : UnsizedChecker (checker r).
@@ -669,7 +669,8 @@ Qed.
 
 Lemma semCheckableUnit (t : unit) : semCheckable t <-> True.
 Proof.
-  split; [move => /(_ 0) H | move => H s]; eapply semCheckableUnitSize; eauto.
+  split; [move => /(_ 0) H | move => H s];
+    eapply semCheckableUnitSize with (t := t) (size := 0); eauto.
 Qed.
 
 Program Instance unitUnsized : UnsizedChecker (checker tt).
@@ -692,12 +693,14 @@ Qed.
 Lemma semCheckableQProp (qp : QProp) :
   semCheckable qp  <-> successful qp.
 Proof.
-  split; [move => /(_ 0) H | move => H s]; eapply semCheckableQPropSize; eauto.
+  split; [move => /(_ 0) H | move => H s];
+    eapply semCheckableQPropSize with (size := 0); eauto.
 Qed.
 
 Program Instance qpUnsized (qp : QProp) : UnsizedChecker (checker qp).
 Next Obligation.
-  rewrite !semFmapSize !semReturnSize. apply imset_eq. reflexivity.
+  do 2 (rewrite semFmapSize; rewrite semReturnSize).
+  apply imset_eq. reflexivity.
 Qed.
 
 Lemma semCheckableGenSize:
@@ -721,7 +724,9 @@ Proof.
   rewrite /semCheckable /checker /testFun.
   split.
   - move => /semForAllShrinkSize H' a' /H' Gen. by auto.
-  - move => H'. apply semForAllShrinkSize => a' /H' Hgen. by auto.
+  - move => H'.
+    eapply semForAllShrinkSize in H'.
+    move => a' /H' Hgen. by auto.
 Qed.
 
 Lemma semCheckablePolyFunSize:

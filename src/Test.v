@@ -199,7 +199,7 @@ Fixpoint localMin (st : State) (r : Rose Checker.Result)
 Fixpoint runATest (st : State) (f : nat -> RandomSeed -> QProp) (maxSteps : nat) :=
   if maxSteps is maxSteps'.+1 then
     let size := (computeSize st) (numSuccessTests st) (numDiscardedTests st) in
-    let (rnd1, rnd2) := randomSplit (randomSeed st) in
+    let (rnd1, rnd2) := RandomQC.split (randomSeed st) in
     let test (st : State) :=
         if (gte (numSuccessTests st) (maxSuccessTests st)) then
           doneTesting st f
