@@ -312,6 +312,11 @@ Module Type GenLowInterface.
   Parameter semGenBoolSize : forall size,
       semGenSize genBool size <--> setT.
 
+  Declare Instance genNSizeMonotonic (bound : positive) :
+    SizeMonotonic (genN bound).
+
+  Declare Instance genBoolSizeMonotonic : SizeMonotonic genBool.
+
   Parameter semSized :
     forall A (f : nat -> G A),
       semGen (sized f) <--> \bigcup_s semGenSize (f s) s.
@@ -1119,6 +1124,15 @@ Module GenLow <: GenLowInterface.
   Admitted.
 
   Lemma semGenBool : semGen genBool <--> setT.
+  Proof.
+  Admitted.
+
+  Instance genNSizeMonotonic (bound : positive) :
+    SizeMonotonic (genN bound).
+  Proof.
+  Admitted.
+
+  Instance genBoolSizeMonotonic : SizeMonotonic genBool.
   Proof.
   Admitted.
 
