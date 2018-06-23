@@ -67,7 +67,8 @@ Module Type GenLowInterface.
       G A -> (A -> bool) -> G (option A).
   Parameter suchThatMaybeOpt : forall {A : Type},
       G (option A) -> (A -> bool) -> G (option A).
-  Parameter choose : positive -> G N.
+  Parameter genN : positive -> G N.
+  Parameter genBool : G bool.
   (* Parameter sample : forall {A : Type}, G A -> list A. *)
 
   (* LL: The abstraction barrier is annoying :D *)
@@ -301,12 +302,15 @@ Module Type GenLowInterface.
     Unsized (choose (a1, a2)).
 *)
 
-  Parameter semChoose :
-    forall n, semGen (choose n) <--> [set m | m < Npos n].
+  Parameter semGenN :
+    forall bound, semGen (genN bound) <--> [set m | m < Npos bound].
 
-  Parameter semChooseSize :
-    forall n size,
-      semGenSize (choose n) size <--> [set m | m < Npos n].
+  Parameter semGenNSize : forall bound size,
+      semGenSize (genN bound) size <--> [set m | m < Npos bound].
+
+  Parameter semGenBool : semGen genBool <--> setT.
+  Parameter semGenBoolSize : forall size,
+      semGenSize genBool size <--> setT.
 
   Parameter semSized :
     forall A (f : nat -> G A),
@@ -571,8 +575,11 @@ Module GenLow <: GenLowInterface.
     end.
 *)
 
-  Definition choose (upper_bound : positive) : G N.
-  Admitted.
+  Definition genN (bound : positive) : G N :=
+    MkGen (fun _ _ _ r => randomN r bound).
+
+  Definition genBool : G bool :=
+    MkGen (fun _ _ _ r => randomBool r).
   
   (* LL : Things that need to be in GenLow because of MkGen *)
 
@@ -1096,15 +1103,22 @@ Module GenLow <: GenLowInterface.
   Qed.
 *)
 
-  Lemma semChooseSize (upper_bound : positive) (size : nat) :
-    semGenSize (choose upper_bound) size <-->
-    [set m | m < Npos upper_bound].
+  Lemma semGenNSize (bound : positive) (size : nat) :
+    semGenSize (genN bound) size <--> [set m | m < Npos bound].
   Proof.
   Admitted.
 
-  Lemma semChoose (upper_bound : positive) :
-    semGen (choose upper_bound) <-->
-    [set m | m < Npos upper_bound].
+  Lemma semGenN (bound : positive) :
+    semGen (genN bound) <--> [set m | m < Npos bound].
+  Proof.
+  Admitted.
+
+  Lemma semGenBoolSize (size : nat) :
+    semGenSize genBool size <--> setT.
+  Proof.
+  Admitted.
+
+  Lemma semGenBool : semGen genBool <--> setT.
   Proof.
   Admitted.
 
