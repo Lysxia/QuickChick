@@ -7,6 +7,7 @@ Require Import ZArith.
 
 Require SplitMix.
 
+(* Splittable randomness. *)
 Class Splittable (seed : Type) : Type := {
   (* Split into two independent seeds. *)
   randomSplit : seed -> seed * seed;
@@ -14,14 +15,27 @@ Class Splittable (seed : Type) : Type := {
   randomN : seed -> N -> N;
   (* Random boolean. *)
   randomBool : seed -> bool;
+
+  (* Specification of [randomN]. *)
+  randomN_correct : forall s bound, randomN s bound <= bound;
 }.
 
+(* A simple model of splittable randomness. *)
 Module InfiniteTrees.
+  (* [Splittable] instances are coalgebras.
+     [Tree] is the final [Splittable] coalgebra. *)
   CoInductive Tree : Type :=
-  | Node : Tree -> Tree -> (N -> N) -> bool -> Tree.
+  | Node : Tree -> Tree ->
+           (forall bound : N, {n : N | n <= bound}) ->
+           bool -> Tree.
 
+  (* A dummy implementation of randomN. *)
+  Definition default_randomN (bound : N) : { n : N | n <= bound } :=
+    exist _ 0%N (leq0n _).
+
+  (* A dummy tree to witness inhabitedness. *)
   CoFixpoint defaultTree : Tree :=
-    Node defaultTree defaultTree (fun _ => 0%N) true.
+    Node defaultTree defaultTree default_randomN true.
 
   Lemma inhabitedTree : inhabited Tree.
   Proof.
@@ -31,36 +45,58 @@ Module InfiniteTrees.
 
   Global Instance Splittable_Tree : Splittable Tree := {|
     randomSplit := fun '(Node t1 t2 _ _) => (t1, t2);
-    randomN := fun '(Node _ _ f _) => f;
+    randomN := fun '(Node _ _ f _) bound => proj1_sig (f bound);
     randomBool := fun '(Node _ _ _ b) => b;
   |}.
+  Proof.
+    intros [? ? randN ?] bound; simpl.
+    destruct randN; auto.
+  Defined.
 
+  (* [seedToTree] is the anamorphism from any [Splittable]
+     coalgebra to [Tree]: it summarizes all the observations
+     we can make of a seed via [Splittable]. *)
   CoFixpoint seedToTree {seed} `{Splittable seed} (s : seed) :=
       let ss := randomSplit s in
       Node (seedToTree (fst ss)) (seedToTree (snd ss))
-           (randomN s) (randomBool s).
+           (fun bound => exist _ (randomN s bound)
+                                 (randomN_correct s bound))
+           (randomBool s).
 
+  (* [randomSplit] is invertible. *)
   Definition corandomSplit (ts : Tree * Tree) : Tree :=
-    Node (fst ts) (snd ts) (fun _ => 0%N) true.
+    Node (fst ts) (snd ts) default_randomN true.
 
-  Definition corandomN (f : N -> N) : Tree :=
+  Lemma corandomSplit_compat ss :
+    randomSplit (corandomSplit ss) = ss.
+  Proof. destruct ss; reflexivity. Qed.
+
+  (* [randomN] is invertible. *)
+  Definition corandomN
+             (f : forall bound : N, { n : N | n <= bound }) : Tree :=
     Node defaultTree defaultTree f true.
 
+  (* [randomBool] is invertible. *)
   Definition corandomBool (b : bool) : Tree :=
-    Node defaultTree defaultTree (fun _ => 0%N) b.
-
-  Lemma corandomSplit_compat ss : randomSplit (corandomSplit ss) = ss.
-  Proof. destruct ss; reflexivity. Qed.
+    Node defaultTree defaultTree default_randomN b.
 End InfiniteTrees.
 
+(* Concrete implementation of a splittable PRNG. *)
 Definition RandomSeed := SplitMix.State.
+
+Lemma State_randomN_correct : forall (s : SplitMix.State) bound,
+    SplitMix.random_N s bound <= bound.
+Proof.
+Admitted.
 
 Instance Splittable_State : Splittable SplitMix.State :=
   { randomSplit := SplitMix.split;
     randomN := SplitMix.random_N;
     randomBool := SplitMix.random_bool;
+    randomN_correct := State_randomN_correct;
   }.
 
+(* TODO: better ways to get an initial seed. *)
 Definition newRandomSeed : SplitMix.State := SplitMix.of_seed 33.
 
 (* Type class machinery for generating things in intervals *)
