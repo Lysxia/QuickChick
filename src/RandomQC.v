@@ -26,16 +26,13 @@ Module InfiniteTrees.
      [Tree] is the final [Splittable] coalgebra. *)
   CoInductive Tree : Type :=
   | Node : Tree -> Tree ->
-           (forall bound : N, {n : N | n <= bound}) ->
+           forall (f : N -> N),
+           (forall bound : N, f bound <= bound) ->
            bool -> Tree.
-
-  (* A dummy implementation of randomN. *)
-  Definition default_randomN (bound : N) : { n : N | n <= bound } :=
-    exist _ 0%N (leq0n _).
 
   (* A dummy tree to witness inhabitedness. *)
   CoFixpoint defaultTree : Tree :=
-    Node defaultTree defaultTree default_randomN true.
+    Node defaultTree defaultTree (fun _ => 0%N) leq0n true.
 
   Lemma inhabitedTree : inhabited Tree.
   Proof.
@@ -44,14 +41,12 @@ Module InfiniteTrees.
   Qed.
 
   Global Instance Splittable_Tree : Splittable Tree := {|
-    randomSplit := fun '(Node t1 t2 _ _) => (t1, t2);
-    randomN := fun '(Node _ _ f _) bound => proj1_sig (f bound);
-    randomBool := fun '(Node _ _ _ b) => b;
+    randomSplit := fun '(Node t1 t2 _ _ _) => (t1, t2);
+    randomN := fun '(Node _ _ f _ _) bound => f bound;
+    randomBool := fun '(Node _ _ _ _ b) => b;
+    randomN_correct := fun t bound =>
+      let '(Node _ _ _ g _) := t in g bound;
   |}.
-  Proof.
-    intros [? ? randN ?] bound; simpl.
-    destruct randN; auto.
-  Defined.
 
   (* [seedToTree] is the anamorphism from any [Splittable]
      coalgebra to [Tree]: it summarizes all the observations
@@ -59,26 +54,49 @@ Module InfiniteTrees.
   CoFixpoint seedToTree {seed} `{Splittable seed} (s : seed) :=
       let ss := randomSplit s in
       Node (seedToTree (fst ss)) (seedToTree (snd ss))
-           (fun bound => exist _ (randomN s bound)
-                                 (randomN_correct s bound))
+           (randomN s)
+           (randomN_correct s)
            (randomBool s).
 
   (* [randomSplit] is invertible. *)
   Definition corandomSplit (ts : Tree * Tree) : Tree :=
-    Node (fst ts) (snd ts) default_randomN true.
+    Node (fst ts) (snd ts) (fun _ => 0%N) leq0n true.
 
   Lemma corandomSplit_compat ss :
     randomSplit (corandomSplit ss) = ss.
   Proof. destruct ss; reflexivity. Qed.
 
   (* [randomN] is invertible. *)
-  Definition corandomN
-             (f : forall bound : N, { n : N | n <= bound }) : Tree :=
-    Node defaultTree defaultTree f true.
+  Definition corandomN (f : N -> N)
+             (g : forall bound, f bound <= bound) : Tree :=
+    Node defaultTree defaultTree f g true.
+
+  Definition dirac (bound x : N) : N -> N :=
+    fun bound' => if bound' =? bound then x else 0%N.
+
+  Lemma dirac_correct (bound x : N) :
+    x <= bound -> forall bound',
+      dirac bound x bound' <= bound'.
+  Proof.
+    intros. unfold dirac.
+    destruct (bound' =? bound) eqn:e => //.
+    apply beq_nat_true in e.
+      by rewrite e.
+  Qed.
+
+  Lemma randomN_complete (bound x : N) :
+    x <= bound -> exists t : Tree, randomN t bound = x.
+  Proof.
+    intros H.
+    eexists (corandomN _ (dirac_correct bound x H)).
+    simpl.
+    unfold dirac.
+      by rewrite Nat.eqb_refl.
+  Qed.
 
   (* [randomBool] is invertible. *)
   Definition corandomBool (b : bool) : Tree :=
-    Node defaultTree defaultTree default_randomN b.
+    Node defaultTree defaultTree (fun _ => 0%N) leq0n b.
 End InfiniteTrees.
 
 (* Concrete implementation of a splittable PRNG. *)

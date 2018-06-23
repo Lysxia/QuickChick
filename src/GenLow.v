@@ -623,8 +623,18 @@ Module GenLow <: GenLowInterface.
   Definition semGenSize {A : Type} (g : G A) (s : nat) : set A :=
     codom (run g s : Tree -> _).
 
-  Definition semGen {A : Type} (g : G A) : set A := \bigcup_s semGenSize g s.
+  Definition semGen {A : Type} (g : G A) : set A :=
+    \bigcup_s semGenSize g s.
   (* end semGen *)
+
+  Lemma semGenUnsize {A} (g : G A) (S : set A) :
+      (forall s, semGenSize g s <--> S) -> (semGen g <--> S).
+  Proof.
+    move => HS.
+    rewrite /semGen. setoid_rewrite HS.
+    apply bigcup_const.
+    do 2 constructor.
+  Qed.
 
   (* More things *)
   Definition bindGen_aux seed `{Splittable seed}
@@ -636,7 +646,8 @@ Module GenLow <: GenLowInterface.
     reflexivity.
   Qed.
 
-  Definition bindGen' {A B : Type} (g : G A) (k : forall (a : A), (a \in semGen g) -> G B) : G B :=
+  Definition bindGen' {A B : Type} (g : G A)
+             (k : forall (a : A), (a \in semGen g) -> G B) : G B :=
     MkGen (fun _ _ n r =>
              let (r1,r2) := randomSplit r in
              run (k (run g n r1) (bindGen_aux g n r1)) n r2).
@@ -707,17 +718,6 @@ Module GenLow <: GenLowInterface.
   Qed.
 
   (** * Semantics of combinators *)
-
-  (* begin semReturn *)
-  Lemma semReturn {A} (x : A) : semGen (returnGen x) <--> [set x].
-  (* end semReturn *)
-  Proof.
-    rewrite /semGen /semGenSize /= bigcup_const ?codom_const.
-    done.
-    exact: InfiniteTrees.inhabitedTree.
-      by do 2! constructor.
-  Qed.
-  
   (* begin semReturnSize *)
   Lemma semReturnSize A (x : A) (s : nat) :
   semGenSize (returnGen x) s <--> [set x].
@@ -726,6 +726,13 @@ Module GenLow <: GenLowInterface.
       rewrite /semGenSize /= codom_const.
       done.
       exact: InfiniteTrees.inhabitedTree.
+  Qed.
+
+  (* begin semReturn *)
+  Lemma semReturn {A} (x : A) : semGen (returnGen x) <--> [set x].
+  (* end semReturn *)
+  Proof.
+    by apply semGenUnsize, semReturnSize.
   Qed.
   
   Program Instance unsizedReturn {A} (x : A) : Unsized (returnGen x).
@@ -1118,30 +1125,42 @@ Module GenLow <: GenLowInterface.
   Lemma semGenNSize (bound : N) (size : nat) :
     semGenSize (genN bound) size <--> [set m | m <= bound].
   Proof.
-  Admitted.
+    move => /= a.
+    split => [[t ?] | Ha].
+    - subst; apply randomN_correct.
+    - by apply InfiniteTrees.randomN_complete.
+  Qed.
 
   Lemma semGenN (bound : N) :
     semGen (genN bound) <--> [set m | m <= bound].
   Proof.
-  Admitted.
+    apply semGenUnsize, semGenNSize.
+  Qed.
 
   Lemma semGenBoolSize (size : nat) :
     semGenSize genBool size <--> setT.
   Proof.
-  Admitted.
+    move => /= b.
+    split => [[t ?] | Hb].
+    - done.
+    - by exists (InfiniteTrees.corandomBool b).
+  Qed.
 
   Lemma semGenBool : semGen genBool <--> setT.
   Proof.
-  Admitted.
+    by apply semGenUnsize, semGenBoolSize.
+  Qed.
 
-  Instance genNSizeMonotonic (bound : N) :
+  Program Instance genNSizeMonotonic (bound : N) :
     SizeMonotonic (genN bound).
-  Proof.
-  Admitted.
+  Next Obligation.
+    by rewrite !semGenNSize.
+  Qed.
 
-  Instance genBoolSizeMonotonic : SizeMonotonic genBool.
-  Proof.
-  Admitted.
+  Program Instance genBoolSizeMonotonic : SizeMonotonic genBool.
+  Next Obligation.
+    by rewrite !semGenBoolSize.
+  Qed.
 
   Lemma semSized A (f : nat -> G A) :
     semGen (sized f) <--> \bigcup_n semGenSize (f n) n.
@@ -1307,7 +1326,7 @@ Module GenLow <: GenLowInterface.
       (exists s, s >= 2*k + n /\ (Some a) \in semGenSize g s :&: (Some @: p)).
   Proof.
     case=> g p k n; elim: n k =>  [//=| n IHn] k a size s' /=.
-    case: s' => r1 r2 ? ? Hrun.
+    case: s' => [r1 r2 ? ? ?] Hrun.
     destruct (g _ _ (2 * k + n.+1) r1) as [a' |] eqn:Heq.
     - destruct (p a') eqn:Hpa.
       + inv Hrun.
@@ -1477,7 +1496,7 @@ Module GenLow <: GenLowInterface.
       a \in semGen g :&: p.
   Proof.
     case=> g p k n; elim: n k =>  [//=| n IHn] k a size s' /=.
-    case: s' => r1 r2 ? ?.
+    case: s' => r1 r2 ? ? ?.
     case: ifP => [/= ? [<-]| _]; last exact: IHn.
       by split=> //; exists (2 * k + n.+1); split=> //; exists r1.
   Qed.
@@ -1496,7 +1515,7 @@ Module GenLow <: GenLowInterface.
       (Some a) \in semGen g :&: (Some @: p).
   Proof.
     case=> g p k n; elim: n k =>  [//=| n IHn] k a size s' /=.
-    case: s' => r1 r2 ? ? Hrun.
+    case: s' => r1 r2 ? ? ? Hrun.
     destruct (g _ _ (2 * k + n.+1) r1) as [a' |] eqn:Heq.
     - destruct (p a') eqn:Hpa.
       + inv Hrun.
@@ -1713,6 +1732,14 @@ Module GenLow <: GenLowInterface.
     elim : n k => [| n IHn ] k.
     - now apply subset_refl.
     - simpl. rewrite !semBindSize !semSizeResize.
+      (*
+      eapply incl_bigcup_compat.
+      + apply H2.
+      + intros x. destruct (p x); [ now apply subset_refl |].
+        eauto.
+      apply incl_bigcup_compat.
+  Qed.
+*) (* Doesn't seem provable. *)
   Admitted.
 
   Lemma suchThatMaybeOpt_subset_compat {A : Type} (p : A -> bool) (g1 g2 : G (option A)) :
