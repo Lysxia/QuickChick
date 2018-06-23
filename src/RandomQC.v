@@ -24,7 +24,7 @@ Module InfiniteTrees.
     exact defaultTree.
   Qed.
 
-  Instance Splittable_Tree : Splittable Tree := {|
+  Global Instance Splittable_Tree : Splittable Tree := {|
     split := fun '(Node t1 t2 _ _) => (t1, t2);
     randomN := fun '(Node _ _ f _) => f;
     randomBool := fun '(Node _ _ _ b) => b;
@@ -47,6 +47,12 @@ Module InfiniteTrees.
   Lemma cosplit_compat ss : split (cosplit ss) = ss.
   Proof. destruct ss; reflexivity. Qed.
 End InfiniteTrees.
+
+Axiom RandomSeed : Type.
+Axiom Splittable_RandomSeed : Splittable RandomSeed.
+Axiom newRandomSeed : RandomSeed.
+
+Existing Instance Splittable_RandomSeed.
 
 (*
 (* We axiomatize a random number generator

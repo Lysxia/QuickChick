@@ -32,9 +32,12 @@ Definition isNone {T : Type} (u : option T) :=
     | None => true
   end.
 
-Lemma randomSplit_codom : @codom InfiniteTrees.Tree _ split <--> setT.
+Notation Tree := InfiniteTrees.Tree.
+
+Lemma randomSplit_codom : @codom Tree _ split <--> setT.
 Proof.
-  assert (assum : forall ss, exists s, split s = ss).
+  assert (assum : forall ss, exists (s : Tree),
+               split s = ss).
   { intro ss; eexists; apply InfiniteTrees.cosplit_compat. }
   by apply/subset_eqP; split=> // [[s1 s2]] _; apply: assum.
 Qed.
@@ -81,7 +84,7 @@ Module Type GenLowInterface.
 
   (* Set of outcomes semantics definitions (repeated below) *)
   Definition semGenSize {A : Type} (g : G A) (size : nat) : set A :=
-    codom (run g size).
+    codom (run g size : Tree -> _).
   Definition semGen {A : Type} (g : G A) : set A :=
     \bigcup_size semGenSize g size.
 
@@ -416,13 +419,14 @@ Module Type GenLowInterface.
   Parameter semPromote :
     forall A (m : Rose (G A)),
       semGen (promote m) <-->
-      codom2 (fun size seed => fmapRose (fun g => run g size seed) m).
+      codom2 (fun size (seed : Tree) =>
+                fmapRose (fun g => run g size seed) m).
 
   Parameter semPromoteSize :
     forall (A : Type) (m : Rose (G A)) n,
       semGenSize (promote m) n <-->
       (fun t : Rose A =>
-         exists (s : _),
+         exists (s : Tree),
            fmapRose (fun g : G A => run g n s) m = t).
 
   (* Those are too concrete, but I need them to prove shrinking.
@@ -431,12 +435,13 @@ Module Type GenLowInterface.
    This is expected since the spec of promote is too concrete. *)
 
   Parameter runFmap :
-    forall (A B : Type) (f : A -> B) (g : G A) seed size,
-      run (fmap f g) seed size = f (run g seed size).
+    forall (A B : Type) (f : A -> B) (g : G A) size (seed : Tree),
+      run (fmap f g) size seed = f (run g size seed).
   
   Parameter runPromote :
-    forall A (m : Rose (G A)) seed size,
-      run (promote m) seed size = fmapRose (fun (g : G A) => run g seed size) m.
+    forall A (m : Rose (G A)) size (seed : Tree),
+      run (promote m) size seed =
+      fmapRose (fun (g : G A) => run g size seed) m.
   
   Parameter semFmapBind :
     forall A B C (g : G A) (f1 : B -> C) (f2 : A -> G B),
@@ -616,7 +621,7 @@ Module GenLow <: GenLowInterface.
   (* Set of outcomes semantics definitions (repeated above) *)
   (* begin semGen *)
   Definition semGenSize {A : Type} (g : G A) (s : nat) : set A :=
-    codom (run g s : InfiniteTrees.Tree -> _).
+    codom (run g s : Tree -> _).
 
   Definition semGen {A : Type} (g : G A) : set A := \bigcup_s semGenSize g s.
   (* end semGen *)
@@ -635,6 +640,8 @@ Module GenLow <: GenLowInterface.
     MkGen (fun _ _ n r =>
              let (r1,r2) := split r in
              run (k (run g n r1) (bindGen_aux g n r1)) n r2).
+
+  Arguments bindGen' {A B} g k.
 
   (** * Semantic properties of generators *)
 
@@ -1295,7 +1302,7 @@ Module GenLow <: GenLowInterface.
   Qed.
 
   Lemma semSizeGenSuchThatMaybeOptAux_sound_alt {A} :
-    forall g p k n (a : A) size seed,
+    forall g p k n (a : A) size (seed : Tree),
       run (suchThatMaybeOptAux g p k n) size seed = Some a ->
       (exists s, s >= 2*k + n /\ (Some a) \in semGenSize g s :&: (Some @: p)).
   Proof.
@@ -1465,7 +1472,7 @@ Module GenLow <: GenLowInterface.
   Qed.
   
   Lemma semGenSuchThatMaybeAux_sound {A} :
-    forall g p k n (a : A) size seed,
+    forall g p k n (a : A) size (seed : Tree),
       run (suchThatMaybeAux g p k n) size seed = Some a ->
       a \in semGen g :&: p.
   Proof.
@@ -1484,7 +1491,7 @@ Module GenLow <: GenLowInterface.
   Qed.
 
   Lemma semGenSuchThatMaybeOptAux_sound {A} :
-    forall g p k n (a : A) size seed,
+    forall g p k n (a : A) size (seed : Tree),
       run (suchThatMaybeOptAux g p k n) size seed = Some a ->
       (Some a) \in semGen g :&: (Some @: p).
   Proof.
@@ -1590,20 +1597,22 @@ Module GenLow <: GenLowInterface.
 
   Lemma semPromote A (m : Rose (G A)) :
     semGen (promote m) <-->
-    codom2 (fun size seed => fmapRose (fun g => run g size seed) m).
+    codom2 (fun size (seed : Tree) =>
+              fmapRose (fun g => run g size seed) m).
   Proof. by rewrite /codom2 curry_codom2l. Qed.
 
   Lemma semPromoteSize (A : Type) (m : Rose (G A)) n :
     semGenSize (promote m) n <-->
-               codom (fun seed => fmapRose (fun g => run g n seed) m).
+    codom (fun (seed : Tree) => fmapRose (fun g => run g n seed) m).
   Proof. by []. Qed.
 
-  Lemma runFmap (A B : Type) (f : A -> B) (g : G A) s size :
-    run (fmap f g) s size = f (run g s size).
+  Lemma runFmap (A B : Type) (f : A -> B) (g : G A) size (s : Tree) :
+    run (fmap f g) size s = f (run g size s).
   Proof. by []. Qed.
 
-  Lemma runPromote A (m : Rose (G A)) seed size :
-    run (promote m) seed size = fmapRose (fun (g : G A) => run g seed size) m.
+  Lemma runPromote A (m : Rose (G A)) size (seed : Tree) :
+    run (promote m) size seed =
+    fmapRose (fun (g : G A) => run g size seed) m.
   Proof. by []. Qed.
   
   Lemma semFmapBind :
