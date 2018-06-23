@@ -53,13 +53,15 @@ Module InfiniteTrees.
   Proof. destruct ss; reflexivity. Qed.
 End InfiniteTrees.
 
+Definition RandomSeed := SplitMix.State.
+
 Instance Splittable_State : Splittable SplitMix.State :=
   { randomSplit := SplitMix.split;
     randomN := SplitMix.random_N;
     randomBool := SplitMix.random_bool;
   }.
 
-Axiom newRandomSeed : SplitMix.State.
+Definition newRandomSeed : SplitMix.State := SplitMix.of_seed 33.
 
 (*
 (* We axiomatize a random number generator

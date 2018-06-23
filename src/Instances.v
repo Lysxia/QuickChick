@@ -24,8 +24,7 @@ Instance genNatSized : GenSized nat :=
 
 Global Instance genZSized : GenSized Z :=
   {| arbitrarySized x :=
-       let p := Pos.of_nat x in
-       bindGen (genN p) (fun n =>
+       bindGen (genN (N.of_nat x)) (fun n =>
        bindGen genBool (fun b =>
        returnGen
          match n with

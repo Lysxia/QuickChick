@@ -404,7 +404,7 @@ Fixpoint foldGen {A B : Type} (f : A -> B -> G A) (l : list B) (a : A)
 
 (* Generate a random nat smaller than or equal to [n]. *)
 Definition genNat (n : nat) : G nat :=
-  fmap N.to_nat (genN (Pos.of_succ_nat n)).
+  fmap N.to_nat (genN (N.of_nat n)).
 
 (* Uniform choice in [def :: gs] *)
 Definition oneof' {A : Type} (g : G A) (gs : list (G A)) : G A :=
