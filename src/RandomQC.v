@@ -5,15 +5,20 @@ Require Import mathcomp.ssreflect.ssreflect.
 From mathcomp Require Import ssrfun ssrbool ssrnat eqtype.
 Require Import ZArith.
 
+Require SplitMix.
+
 Class Splittable (seed : Type) : Type := {
+  (* Split into two independent seeds. *)
   randomSplit : seed -> seed * seed;
-  randomN : seed -> positive -> N;
+  (* Random number less than or equal to bound. *)
+  randomN : seed -> N -> N;
+  (* Random boolean. *)
   randomBool : seed -> bool;
 }.
 
 Module InfiniteTrees.
   CoInductive Tree : Type :=
-  | Node : Tree -> Tree -> (positive -> N) -> bool -> Tree.
+  | Node : Tree -> Tree -> (N -> N) -> bool -> Tree.
 
   CoFixpoint defaultTree : Tree :=
     Node defaultTree defaultTree (fun _ => 0%N) true.
@@ -38,7 +43,7 @@ Module InfiniteTrees.
   Definition corandomSplit (ts : Tree * Tree) : Tree :=
     Node (fst ts) (snd ts) (fun _ => 0%N) true.
 
-  Definition corandomN (f : positive -> N) : Tree :=
+  Definition corandomN (f : N -> N) : Tree :=
     Node defaultTree defaultTree f true.
 
   Definition corandomBool (b : bool) : Tree :=
@@ -48,11 +53,13 @@ Module InfiniteTrees.
   Proof. destruct ss; reflexivity. Qed.
 End InfiniteTrees.
 
-Axiom RandomSeed : Type.
-Axiom Splittable_RandomSeed : Splittable RandomSeed.
-Axiom newRandomSeed : RandomSeed.
+Instance Splittable_State : Splittable SplitMix.State :=
+  { randomSplit := SplitMix.split;
+    randomN := SplitMix.random_N;
+    randomBool := SplitMix.random_bool;
+  }.
 
-Existing Instance Splittable_RandomSeed.
+Axiom newRandomSeed : SplitMix.State.
 
 (*
 (* We axiomatize a random number generator

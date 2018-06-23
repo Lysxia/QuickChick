@@ -70,7 +70,7 @@ Module Type GenLowInterface.
       G A -> (A -> bool) -> G (option A).
   Parameter suchThatMaybeOpt : forall {A : Type},
       G (option A) -> (A -> bool) -> G (option A).
-  Parameter genN : positive -> G N.
+  Parameter genN : N -> G N.
   Parameter genBool : G bool.
   (* Parameter sample : forall {A : Type}, G A -> list A. *)
 
@@ -306,16 +306,16 @@ Module Type GenLowInterface.
 *)
 
   Parameter semGenN :
-    forall bound, semGen (genN bound) <--> [set m | m < Npos bound].
+    forall bound, semGen (genN bound) <--> [set m | m <= bound].
 
   Parameter semGenNSize : forall bound size,
-      semGenSize (genN bound) size <--> [set m | m < Npos bound].
+      semGenSize (genN bound) size <--> [set m | m <= bound].
 
   Parameter semGenBool : semGen genBool <--> setT.
   Parameter semGenBoolSize : forall size,
       semGenSize genBool size <--> setT.
 
-  Declare Instance genNSizeMonotonic (bound : positive) :
+  Declare Instance genNSizeMonotonic (bound : N) :
     SizeMonotonic (genN bound).
 
   Declare Instance genBoolSizeMonotonic : SizeMonotonic genBool.
@@ -585,7 +585,7 @@ Module GenLow <: GenLowInterface.
     end.
 *)
 
-  Definition genN (bound : positive) : G N :=
+  Definition genN (bound : N) : G N :=
     MkGen (fun _ _ _ r => randomN r bound).
 
   Definition genBool : G bool :=
@@ -1115,13 +1115,13 @@ Module GenLow <: GenLowInterface.
   Qed.
 *)
 
-  Lemma semGenNSize (bound : positive) (size : nat) :
-    semGenSize (genN bound) size <--> [set m | m < Npos bound].
+  Lemma semGenNSize (bound : N) (size : nat) :
+    semGenSize (genN bound) size <--> [set m | m <= bound].
   Proof.
   Admitted.
 
-  Lemma semGenN (bound : positive) :
-    semGen (genN bound) <--> [set m | m < Npos bound].
+  Lemma semGenN (bound : N) :
+    semGen (genN bound) <--> [set m | m <= bound].
   Proof.
   Admitted.
 
@@ -1134,7 +1134,7 @@ Module GenLow <: GenLowInterface.
   Proof.
   Admitted.
 
-  Instance genNSizeMonotonic (bound : positive) :
+  Instance genNSizeMonotonic (bound : N) :
     SizeMonotonic (genN bound).
   Proof.
   Admitted.
