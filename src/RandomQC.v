@@ -6,7 +6,7 @@ From mathcomp Require Import ssrfun ssrbool ssrnat eqtype.
 Require Import ZArith.
 
 Class Splittable (seed : Type) : Type := {
-  split : seed -> seed * seed;
+  randomSplit : seed -> seed * seed;
   randomN : seed -> positive -> N;
   randomBool : seed -> bool;
 }.
@@ -25,17 +25,17 @@ Module InfiniteTrees.
   Qed.
 
   Global Instance Splittable_Tree : Splittable Tree := {|
-    split := fun '(Node t1 t2 _ _) => (t1, t2);
+    randomSplit := fun '(Node t1 t2 _ _) => (t1, t2);
     randomN := fun '(Node _ _ f _) => f;
     randomBool := fun '(Node _ _ _ b) => b;
   |}.
 
   CoFixpoint seedToTree {seed} `{Splittable seed} (s : seed) :=
-      let ss := split s in
+      let ss := randomSplit s in
       Node (seedToTree (fst ss)) (seedToTree (snd ss))
            (randomN s) (randomBool s).
 
-  Definition cosplit (ts : Tree * Tree) : Tree :=
+  Definition corandomSplit (ts : Tree * Tree) : Tree :=
     Node (fst ts) (snd ts) (fun _ => 0%N) true.
 
   Definition corandomN (f : positive -> N) : Tree :=
@@ -44,7 +44,7 @@ Module InfiniteTrees.
   Definition corandomBool (b : bool) : Tree :=
     Node defaultTree defaultTree (fun _ => 0%N) b.
 
-  Lemma cosplit_compat ss : split (cosplit ss) = ss.
+  Lemma corandomSplit_compat ss : randomSplit (corandomSplit ss) = ss.
   Proof. destruct ss; reflexivity. Qed.
 End InfiniteTrees.
 

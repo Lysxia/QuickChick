@@ -34,11 +34,11 @@ Definition isNone {T : Type} (u : option T) :=
 
 Notation Tree := InfiniteTrees.Tree.
 
-Lemma randomSplit_codom : @codom Tree _ split <--> setT.
+Lemma randomSplit_codom : @codom Tree _ randomSplit <--> setT.
 Proof.
   assert (assum : forall ss, exists (s : Tree),
-               split s = ss).
-  { intro ss; eexists; apply InfiniteTrees.cosplit_compat. }
+               randomSplit s = ss).
+  { intro ss; eexists; apply InfiniteTrees.corandomSplit_compat. }
   by apply/subset_eqP; split=> // [[s1 s2]] _; apply: assum.
 Qed.
 
@@ -496,7 +496,7 @@ Module GenLow <: GenLowInterface.
   Definition bindGen
              {A B : Type} (g : G A) (k : A -> G B) : G B :=
     MkGen (fun _ _ n r =>
-             let (r1, r2) := split r in
+             let (r1, r2) := randomSplit r in
              run (k (run g n r1)) n r2).
 
   Definition bindGenOpt
@@ -562,7 +562,7 @@ Module GenLow <: GenLowInterface.
     match n' with
       | O => nil
       | S n'' =>
-        let (rnd1, rnd2) := split rnd in
+        let (rnd1, rnd2) := randomSplit rnd in
         cons rnd1 (rnds rnd2 n'')
     end.
   
@@ -638,7 +638,7 @@ Module GenLow <: GenLowInterface.
 
   Definition bindGen' {A B : Type} (g : G A) (k : forall (a : A), (a \in semGen g) -> G B) : G B :=
     MkGen (fun _ _ n r =>
-             let (r1,r2) := split r in
+             let (r1,r2) := randomSplit r in
              run (k (run g n r1) (bindGen_aux g n r1)) n r2).
 
   Arguments bindGen' {A B} g k.
@@ -1017,7 +1017,7 @@ Module GenLow <: GenLowInterface.
     edestruct Hin1' as [_ [r1 Hr1]].
     edestruct Hin2' as [_ [r2 Hr2]].
     eexists (s + s'). split; [ now constructor |].
-    exists (InfiniteTrees.cosplit (r1, r2)).
+    exists (InfiniteTrees.corandomSplit (r1, r2)).
     simpl.
     rewrite Hr1 Hr2. reflexivity.
   Qed.
@@ -1046,7 +1046,7 @@ Module GenLow <: GenLowInterface.
     edestruct Hgen as [r1 Hr1].
     edestruct Hin2' as [_ [r2 Hr2]].
     eexists (s + s'). split; [ now constructor |].
-    exists (InfiniteTrees.cosplit (r1, r2)).
+    exists (InfiniteTrees.corandomSplit (r1, r2)).
     simpl.
     rewrite Hr1 Hr2. reflexivity.
   Qed.
