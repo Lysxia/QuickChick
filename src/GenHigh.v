@@ -41,6 +41,7 @@ Parameter backtrack : forall {A : Type}, list (nat * G (option A)) -> G (option 
 Parameter vectorOf : forall {A : Type}, nat -> G A -> G (list A).
 Parameter listOf : forall {A : Type}, G A -> G (list A).
 Parameter elements : forall {A : Type}, A -> list A -> G A.
+Parameter genNat : nat -> G nat.
 
 (* Correctness for derived generators *)
 Parameter semLiftGen :
@@ -264,6 +265,12 @@ Parameter semElementsSize:
   forall {A} (l: list A) (def : A) s,
     (semGenSize (elements def l) s) <--> if l is nil then [set def] else l.
 
+Parameter semGenNat : forall (n : nat),
+  semGen (genNat n) <--> [set m | m <= n].
+
+Parameter semGenNatSize : forall (n : nat) size,
+  semGenSize (genNat n) size <--> [set m | m <= n].
+
 Declare Instance elementsUnsized {A} {def : A} (l : list A)  : Unsized (elements def l).
 
 Definition genPair {A B : Type} (ga : G A) (gb : G B) : G (A * B) :=
@@ -396,12 +403,12 @@ Fixpoint foldGen {A B : Type} (f : A -> B -> G A) (l : list B) (a : A)
   end).
 
 (* Generate a random nat smaller than or equal to [n]. *)
-Definition chooseNat (n : nat) : G nat :=
-  fmap N.to_nat (choose (Pos.of_succ_nat n)).
+Definition genNat (n : nat) : G nat :=
+  fmap N.to_nat (genN (Pos.of_succ_nat n)).
 
 (* Uniform choice in [def :: gs] *)
 Definition oneof' {A : Type} (g : G A) (gs : list (G A)) : G A :=
-  bindGen (chooseNat (length gs)) (nth g gs).
+  bindGen (genNat (length gs)) (nth g gs).
 
 Definition oneof {A : Type} (def : G A) (gs : list (G A)) : G A :=
   match gs with
@@ -433,7 +440,7 @@ Definition sum_fst {A : Type} (gs : list (nat * A)) : nat :=
 Definition frequency' {A : Type}
            (w : nat) (g : G A) (gs : list (nat * G A))
 : G A :=
-  bindGen (chooseNat (w + sum_fst gs))
+  bindGen (genNat (w + sum_fst gs))
           (fun n => @snd _ _ (pick g gs n)).
 
 Definition frequency {A : Type} (def : G A) (gs : list (nat * G A)) : G A :=
@@ -449,7 +456,7 @@ Fixpoint backtrackFuel {A : Type} (fuel : nat) (tot : nat) (gs : list (nat * G (
       match tot with
       | O => returnGen None
       | S tot =>
-        bindGen (chooseNat tot) (fun n =>
+        bindGen (genNat tot) (fun n =>
                  let '(k, g, gs') := pickDrop gs n in
                  bindGen g (fun ma =>
                  match ma with 
@@ -470,12 +477,12 @@ Definition vectorOf {A : Type} (k : nat) (g : G A)
              ) (returnGen nil) (nseq k g).
 
 Definition listOf {A : Type} (g : G A) : G (list A) :=
-  sized (fun n => bindGen (chooseNat n)
+  sized (fun n => bindGen (genNat n)
                           (fun k => vectorOf k g)).
 
 (* Uniform choice in [x :: l]. *)
 Definition elements' {A : Type} (x : A) (l : list A) :=
-  bindGen (chooseNat (length l)) (fun n' =>
+  bindGen (genNat (length l)) (fun n' =>
   returnGen (List.nth n' l x)).
 
 Definition elements {A : Type} (def : A) (l : list A) :=
@@ -793,8 +800,13 @@ Next Obligation.
   move => l [H1 H2]; split => // a Ha. by eapply (monotonic H0); eauto.
 Qed.
 
-Lemma semChooseNatSize (n : nat) size :
-  semGenSize (chooseNat n) size <--> [set m | m <= n].
+Lemma semGenNatSize (n : nat) size :
+  semGenSize (genNat n) size <--> [set m | m <= n].
+Proof.
+Admitted.
+
+Lemma semGenNat (n : nat) :
+  semGen (genNat n) <--> [set m | m <= n].
 Proof.
 Admitted.
 
@@ -803,7 +815,7 @@ Lemma semListOfSize {A : Type} (g : G A) size :
   [set l | length l <= size /\ l \subset (semGenSize g size)].
 Proof.
 rewrite /listOf semSizedSize semBindSize; setoid_rewrite semVectorOfSize.
-rewrite semChooseNatSize // => l.
+rewrite semGenNatSize // => l.
 split=> [[n [? [-> ?]]] | [? ?]] //.
   by exists (length l).
 Qed.
@@ -1780,14 +1792,14 @@ Proof. by rewrite semOneof. Qed.
    property). Note: this doesn't hold for sized! *)
 
 Definition betterSized {A} (f : nat -> G A) :=
-  sized (fun x => bindGen (chooseNat x) f).
+  sized (fun x => bindGen (genNat x) f).
 
 Program Instance betterSizedIndeedBetter {A} (f : nat -> G A) 
         (H: forall s, SizeMonotonic (f s)) :
   SizeMonotonic (betterSized f).
 Next Obligation.
   rewrite /betterSized . 
-  rewrite !semSizedSize !semBindSize !semChooseNatSize.
+  rewrite !semSizedSize !semBindSize !semGenNatSize.
   apply incl_bigcup_compat.
   move => a Ha. eapply leq_trans; eassumption.
   move => x. apply monotonic. assumption.
