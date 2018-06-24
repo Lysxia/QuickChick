@@ -36,10 +36,8 @@ Notation Tree := InfiniteTrees.Tree.
 
 Lemma randomSplit_codom : @codom Tree _ randomSplit <--> setT.
 Proof.
-  assert (assum : forall ss, exists (s : Tree),
-               randomSplit s = ss).
-  { intro ss; eexists; apply InfiniteTrees.corandomSplit_compat. }
-  by apply/subset_eqP; split=> // [[s1 s2]] _; apply: assum.
+  by apply/subset_eqP; split=> // [[s1 s2]] _;
+     apply randomSplit_complete.
 Qed.
 
 (* We hide the implementation of generators behind this interface. The
@@ -728,7 +726,7 @@ Module GenLow <: GenLowInterface.
   Proof.
       rewrite /semGenSize /= codom_const.
       done.
-      exact: InfiniteTrees.inhabitedTree.
+      exact: inhabitedCoSplittable.
   Qed.
 
   (* begin semReturn *)
@@ -967,7 +965,7 @@ Module GenLow <: GenLowInterface.
     intros H1 H2 [x |] [s [_ [r H]]]; [| right; reflexivity ].
     left.
     eexists; split; [| reflexivity ].
-    simpl in H. destruct r as [r1 r2] eqn:Heq.
+    simpl in H. destruct r as [[r1 r2]] eqn:Heq.
     destruct (run g s r1) eqn:Heq2; try discriminate.
     eexists a. 
     split.
@@ -989,7 +987,7 @@ Module GenLow <: GenLowInterface.
     intros H1 H2 [x |] [s [_ [r H]]]; [| right; reflexivity ].
     left.
     eexists; split; [| reflexivity ].
-    simpl in H. destruct r as [r1 r2] eqn:Heq.
+    simpl in H. destruct r as [[r1 r2]] eqn:Heq.
     destruct (run (f (run g s r1)) s r2) eqn:Heq2; try discriminate.
     inv H. eexists (run g s r1). split.
     eapply H1. eexists; split; [| eexists; reflexivity ].
@@ -1131,7 +1129,7 @@ Module GenLow <: GenLowInterface.
     move => /= a.
     split => [[t ?] | Ha].
     - subst; apply randomN_correct.
-    - by apply InfiniteTrees.randomN_complete.
+    - by apply randomN_complete.
   Qed.
 
   Lemma semGenN (bound : N) :
@@ -1318,7 +1316,7 @@ Module GenLow <: GenLowInterface.
   Lemma semGenSizeInhabited {A} (g : G A) s :
     exists x, semGenSize g s x.
   Proof.
-    destruct InfiniteTrees.inhabitedTree as [r].
+    destruct (inhabitedCoSplittable InfiniteTrees.Tree) as [r].
     eexists (run g s r ). unfold semGenSize, codom.
     exists r. reflexivity.
   Qed.
@@ -1329,7 +1327,7 @@ Module GenLow <: GenLowInterface.
       (exists s, s >= 2*k + n /\ (Some a) \in semGenSize g s :&: (Some @: p)).
   Proof.
     case=> g p k n; elim: n k =>  [//=| n IHn] k a size s' /=.
-    case: s' => [r1 r2 ? ? ?] Hrun.
+    case: s' => [[r1 r2] ? ? ?] Hrun.
     destruct (g _ _ (2 * k + n.+1) r1) as [a' |] eqn:Heq.
     - destruct (p a') eqn:Hpa.
       + inv Hrun.
@@ -1499,7 +1497,7 @@ Module GenLow <: GenLowInterface.
       a \in semGen g :&: p.
   Proof.
     case=> g p k n; elim: n k =>  [//=| n IHn] k a size s' /=.
-    case: s' => r1 r2 ? ? ?.
+    case: s' => [[r1 r2]] ? ? ?.
     case: ifP => [/= ? [<-]| _]; last exact: IHn.
       by split=> //; exists (2 * k + n.+1); split=> //; exists r1.
   Qed.
@@ -1518,7 +1516,7 @@ Module GenLow <: GenLowInterface.
       (Some a) \in semGen g :&: (Some @: p).
   Proof.
     case=> g p k n; elim: n k =>  [//=| n IHn] k a size s' /=.
-    case: s' => r1 r2 ? ? ? Hrun.
+    case: s' => [[r1 r2]] ? ? ? Hrun.
     destruct (g _ _ (2 * k + n.+1) r1) as [a' |] eqn:Heq.
     - destruct (p a') eqn:Hpa.
       + inv Hrun.
