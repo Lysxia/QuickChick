@@ -241,20 +241,6 @@ Proof.
   constructor. now apply arbNat_correct.
 Qed.
 
-Lemma arbInt_correct s :
-  semGenSize arbitrary s <-->
-  [set z | (- Z.of_nat s <= z <= Z.of_nat s)%Z].
-Proof.
-(*
-rewrite semSizedSize semChooseSize.
-  by move=> n; split=> [/andP|] [? ?]; [|apply/andP]; split; apply/Zle_is_le_bool.
-apply/(Zle_bool_trans _ 0%Z); apply/Zle_is_le_bool.
-  exact/Z.opp_nonpos_nonneg/Zle_0_nat.
-exact/Zle_0_nat.
-Qed.
-*)
-Admitted.
-
 Lemma arbBool_correctSize s :
   semGenSize arbitrary s <--> [set: bool].
 Proof.
@@ -263,27 +249,96 @@ rewrite semSizedSize semGenBoolSize //; case a=> //=.
 Qed.
 
 Lemma arbNat_correctSize s :
-  semGenSize arbitrary s <--> [set n : nat | (n <= s)%coq_nat].
+  semGenSize arbitrary s <--> [set n : nat | n <= s].
 Proof.
-(*
-rewrite semSizedSize semGenNSize. // => n /=; case: leP.
+rewrite semSizedSize semGenNatSize // => n.
 Qed.
-*)
-Admitted.
 
-Lemma arbInt_correctSize : semGen arbitrary <--> [set: Z].
+Lemma nat_of_binN (n : N) : nat_of_bin n = N.to_nat n.
 Proof.
-(*
-rewrite /arbitrarySized semSized => n; split=> // _; exists (Z.abs_nat n); split=> //.
-simpl.
-rewrite Nat2Z.inj_abs_nat (semChooseSize _ _ _).
-  by case: n => //= p; rewrite !Z.leb_refl.
-apply/(Zle_bool_trans _ 0%Z); apply/Zle_is_le_bool.
-  exact/Z.opp_nonpos_nonneg/Z.abs_nonneg.
-exact/Z.abs_nonneg.
+  destruct n as [| p]; auto.
+  elim: p => //= p IHp; rewrite IHp.
+  - rewrite NatTrec.doubleE.
+    rewrite Pos2Nat.inj_xI.
+    rewrite <- mul2n.
+    done.
+  - rewrite NatTrec.doubleE.
+    rewrite Pos2Nat.inj_xO.
+    rewrite <- mul2n.
+    done.
 Qed.
-*)
-Admitted.
+
+Lemma arbInt_correctSize s :
+  semGenSize arbitrary s <-->
+  [set z | (- Z.of_nat s <= z <= Z.of_nat s)%Z].
+Proof.
+  rewrite semSizedSize semBindSize semGenNSize.
+  setoid_rewrite semBindSize.
+  setoid_rewrite semReturnSize.
+  setoid_rewrite semGenBoolSize.
+  move=> z; split=> [ [a [Ha [b [Hb Hz]]]] | [Hz_ Hz]].
+  - move: Ha => /leP Ha.
+    rewrite !nat_of_binN in Ha.
+    apply inj_le in Ha.
+    do 2 rewrite N_nat_Z in Ha.
+    rewrite nat_N_Z in Ha.
+    destruct a as [ | n]; [|destruct b]; inversion Hz.
+    + omega.
+    + split.
+      transitivity 0%Z.
+      * apply Z.opp_nonpos_nonneg.
+        apply Zle_0_nat.
+      * apply Zle_0_pos.
+      * done.
+    + split.
+      * apply Z.opp_le_mono; simpl.
+        rewrite Z.opp_involutive.
+        done.
+      * transitivity 0%Z.
+        -- apply Pos2Z.neg_is_nonpos.
+        -- apply Zle_0_nat.
+  - destruct z as [|p|p].
+    + by exists 0%N; split; [ |exists true].
+    + exists (Npos p); split; [ | by exists true].
+      apply (introT leP).
+      rewrite !nat_of_binN.
+      apply Z2Nat.inj_le in Hz; [ | done | by apply Zle_0_nat].
+      rewrite Nat2Z.id in Hz.
+      rewrite Nnat.Nat2N.id.
+      done.
+    + exists (Npos p); split; [ | by exists false].
+      apply (introT leP).
+      rewrite !nat_of_binN.
+      apply Z.opp_le_mono in Hz_.
+      rewrite Z.opp_involutive in Hz_.
+      apply Z2Nat.inj_le in Hz_; [ | done | by apply Zle_0_nat ].
+      rewrite Nat2Z.id in Hz_.
+      rewrite Nnat.Nat2N.id.
+      done.
+Qed.
+
+Lemma arbInt_correct : semGen arbitrary <--> [set: Z].
+Proof.
+  move=> z.
+  split=> _ //.
+  destruct z as [| p | p].
+  - by exists 0; split; [ | apply arbInt_correctSize].
+  - exists (Pos.to_nat p).
+    split; [ done |].
+    apply arbInt_correctSize.
+    rewrite positive_nat_Z.
+    split.
+    + transitivity 0%Z;
+        [ apply Z.opp_nonpos_nonneg |]; apply Zle_0_pos.
+    + reflexivity.
+  - exists (Pos.to_nat p).
+    split; [ done |].
+    apply arbInt_correctSize.
+    rewrite positive_nat_Z.
+    split.
+    + reflexivity.
+    + apply Zle_neg_pos.
+Qed.
 
 Lemma arbList_correct:
   forall {A} `{H : Arbitrary A} (P : nat -> A -> Prop) s,
