@@ -271,6 +271,14 @@ Proof. by case=> a x; split=> [[?] []|Px] //; exists a. Qed.
 Lemma bigcup_const_2 A (x :A) B (P : set B) : (\bigcup_(_ in [set x]) P) <--> P.
 Proof. by split=> [[?] []|Px] //; exists x; split => //=. Qed.
 
+Lemma bigcup_const_3 A (s : set A) B (P : set B) :
+  (exists a, a \in s) ->
+  \bigcup_(_ in s) P <--> P.
+Proof.
+  move=> [a Ha] b.
+  by split=> [[?] []|Pb] //; exists a; split=> //=.
+Qed.
+
 Lemma bigcupC T U V A B (F : T -> U -> set V) :
   \bigcup_(i in A) \bigcup_(j in B) F i j <-->
   \bigcup_(j in B) \bigcup_(i in A) F i j.
@@ -677,6 +685,13 @@ Proof.
   intros A x x'; split; intros H.
   - inv H. reflexivity. now inv H0.
   - inv H. now constructor.
+Qed.
+
+Lemma bigcup_cons {A B : Type}
+      (x : A) (xs : list A) (F : A -> set B) :
+  \bigcup_(y in (x :: xs)) F y <--> F x :|: \bigcup_(y in xs) F y.
+Proof.
+  by rewrite cons_set_eq bigcup_setU_l bigcup_set1.
 Qed.
 
 Lemma incl_subset {A : Type} (l1 l2 : seq A) :
