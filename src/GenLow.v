@@ -88,6 +88,9 @@ Module Type GenLowInterface.
   Definition semGen {A : Type} (g : G A) : set A :=
     \bigcup_size semGenSize g size.
 
+  Parameter semGenUnsize : forall {A} (g : G A) (S : set A),
+      (forall s, semGenSize g s <--> S) -> (semGen g <--> S).
+
   Parameter bindGen' : forall {A B : Type} (g : G A), 
       (forall (a : A), (a \in semGen g) -> G B) -> G B.
 

@@ -404,7 +404,7 @@ Fixpoint foldGen {A B : Type} (f : A -> B -> G A) (l : list B) (a : A)
 
 (* Generate a random nat smaller than or equal to [n]. *)
 Definition genNat (n : nat) : G nat :=
-  fmap N.to_nat (genN (N.of_nat n)).
+  fmap nat_of_bin (genN (bin_of_nat n)).
 
 (* Uniform choice in [def :: gs] *)
 Definition oneof' {A : Type} (g : G A) (gs : list (G A)) : G A :=
@@ -803,12 +803,17 @@ Qed.
 Lemma semGenNatSize (n : nat) size :
   semGenSize (genNat n) size <--> [set m | m <= n].
 Proof.
-Admitted.
+  rewrite semFmapSize semGenNSize.
+  move => m.
+  rewrite bin_of_natK.
+  split => [ [m' [Hm Hm']] | Hm ].
+  - by rewrite <- Hm'.
+  - by exists (bin_of_nat m); rewrite bin_of_natK.
+Qed.
 
 Lemma semGenNat (n : nat) :
   semGen (genNat n) <--> [set m | m <= n].
-Proof.
-Admitted.
+Proof. apply semGenUnsize, semGenNatSize. Qed.
 
 Lemma semListOfSize {A : Type} (g : G A) size :
   semGenSize (listOf g) size <-->
