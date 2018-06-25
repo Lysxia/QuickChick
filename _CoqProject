@@ -4,6 +4,7 @@ src/Tactics.v
 src/Sets.v
 src/Nat_util.v
 src/SplitMix.v
+src/Splittable.v
 src/RandomQC.v
 src/RoseTrees.v
 src/GenLow.v
