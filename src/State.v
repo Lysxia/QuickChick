@@ -1,7 +1,7 @@
 Set Implicit Arguments.
 
 Require Import GenLow.
-Require Import RandomQC.
+Require Import Splittable.
 Require Import Coq.Strings.String.
 
 Require Import StringOT.

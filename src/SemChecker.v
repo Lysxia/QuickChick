@@ -189,7 +189,7 @@ Proof.
   - move => H b [[[res [l]]] [/= [seed Hgen] H']]; subst.
     + suff :
         successful
-          (@run _ RandomQC.InfiniteTrees.Splittable_Tree _
+          (@run _ SplittableTheory.Infinite.Splittable_Tree _
              (fmap
                 (fun x0 => {| unProp := joinRose (fmapRose unProp x0) |})
                 (promote (@props' _ _ HCheck (S n) pf sh x))) s seed).

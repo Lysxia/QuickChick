@@ -44,6 +44,7 @@ Require Export State.
 Require Export Checker.
 Require Export SemChecker.
 Require Export Test.
+Require Export Splittable.
 Require Export ExtractionQC.
 Require Export Decidability.
 Require Export Classes. 

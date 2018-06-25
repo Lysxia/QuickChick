@@ -5,7 +5,8 @@ Require Import Omega.
 Require Import mathcomp.ssreflect.ssreflect.
 From mathcomp Require Import ssrnat ssrbool eqtype div.
 
-From QuickChick Require Import RoseTrees RandomQC GenLow GenHigh SemChecker.
+From QuickChick Require Import
+     RoseTrees Splittable GenLow GenHigh SemChecker.
 From QuickChick Require Import Show Checker State Classes.
 
 Require Import Coq.Strings.String.
