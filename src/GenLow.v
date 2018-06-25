@@ -4,7 +4,7 @@ Set Warnings "-notation-overridden,-parsing".
 Require Import ZArith List.
 Require Import mathcomp.ssreflect.ssreflect.
 From mathcomp Require Import ssrfun ssrbool ssrnat.
-Require Import RandomQC RoseTrees.
+Require Import Splittable SplittableTheory RoseTrees.
 Require Import Sets Tactics.
 Require Import Numbers.BinNums.
 Require Import Classes.RelationClasses.
@@ -32,12 +32,12 @@ Definition isNone {T : Type} (u : option T) :=
     | None => true
   end.
 
-Notation Tree := InfiniteTrees.Tree.
+Notation Tree := Infinite.Tree.
 
 Lemma randomSplit_codom : @codom Tree _ randomSplit <--> setT.
 Proof.
-  by apply/subset_eqP; split=> // [[s1 s2]] _;
-     apply randomSplit_complete.
+  apply/subset_eqP; split=> // [[s1 s2]] _.
+  eexists; apply randomSplit_complete.
 Qed.
 
 (* We hide the implementation of generators behind this interface. The
@@ -614,7 +614,7 @@ Module GenLow <: GenLowInterface.
   Axiom parametricGen :
     forall {A : Type} (g : GenType A),
     forall seed `(Splittable seed) (n : nat) (r : seed),
-      let r0 := InfiniteTrees.seedToTree r in
+      let r0 := Infinite.seedToTree r in
       run g n r0 = run g n r.
 
   (** * Semantics of generators *)
@@ -642,7 +642,7 @@ Module GenLow <: GenLowInterface.
              {A : Type} (g : G A) (n : nat) (r : seed) :
     semGen g (run g n r).
     exists n; split => //=.
-    exists (InfiniteTrees.seedToTree r).
+    exists (Infinite.seedToTree r).
     rewrite parametricGen.
     reflexivity.
   Qed.
@@ -1025,7 +1025,7 @@ Module GenLow <: GenLowInterface.
     edestruct Hin1' as [_ [r1 Hr1]].
     edestruct Hin2' as [_ [r2 Hr2]].
     eexists (s + s'). split; [ now constructor |].
-    exists (InfiniteTrees.corandomSplit (r1, r2)).
+    exists (Infinite.corandomSplit (r1, r2)).
     simpl.
     rewrite Hr1 Hr2. reflexivity.
   Qed.
@@ -1054,7 +1054,7 @@ Module GenLow <: GenLowInterface.
     edestruct Hgen as [r1 Hr1].
     edestruct Hin2' as [_ [r2 Hr2]].
     eexists (s + s'). split; [ now constructor |].
-    exists (InfiniteTrees.corandomSplit (r1, r2)).
+    exists (Infinite.corandomSplit (r1, r2)).
     simpl.
     rewrite Hr1 Hr2. reflexivity.
   Qed.
@@ -1129,7 +1129,7 @@ Module GenLow <: GenLowInterface.
     move => /= a.
     split => [[t ?] | Ha].
     - subst; apply randomN_correct.
-    - by apply randomN_complete.
+    - by eexists; apply randomN_complete.
   Qed.
 
   Lemma semGenN (bound : N) :
@@ -1144,7 +1144,7 @@ Module GenLow <: GenLowInterface.
     move => /= b.
     split => [[t ?] | Hb].
     - done.
-    - by exists (InfiniteTrees.corandomBool b).
+    - by exists (Infinite.corandomBool b).
   Qed.
 
   Lemma semGenBool : semGen genBool <--> setT.
@@ -1316,7 +1316,7 @@ Module GenLow <: GenLowInterface.
   Lemma semGenSizeInhabited {A} (g : G A) s :
     exists x, semGenSize g s x.
   Proof.
-    destruct (inhabitedCoSplittable InfiniteTrees.Tree) as [r].
+    destruct (inhabitedCoSplittable Infinite.Tree) as [r].
     eexists (run g s r ). unfold semGenSize, codom.
     exists r. reflexivity.
   Qed.
