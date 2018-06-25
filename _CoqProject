@@ -8,6 +8,7 @@ src/Splittable.v
 src/SplittableTheory.v
 src/RandomQC.v
 src/RoseTrees.v
+src/GenLowInterface.v
 src/GenLow.v
 src/GenHigh.v
 src/Classes.v
