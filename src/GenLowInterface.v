@@ -11,6 +11,10 @@ Require Export ExtLib.Structures.Monads.
 Import MonadNotation.
 Open Scope monad_scope.
 
+Set Implicit Arguments.
+Unset Strict Implicit.
+Unset Printing Implicit Defensive.
+
 Definition isNone {T : Type} (u : option T) :=
   match u with
     | Some _ => false
