@@ -1,7 +1,6 @@
 Require Import String.
 Require Import Ascii.
 Require Import NArith.
-Require Extraction.
 
 (* Binary numbers. Most operations assume little-endianness,
    but this can also be used as a big-endian representation. *)
