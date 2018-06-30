@@ -36,6 +36,20 @@ Parameter vectorOf : forall {A : Type}, nat -> G A -> G (list A).
 Parameter listOf : forall {A : Type}, G A -> G (list A).
 Parameter elements : forall {A : Type}, A -> list A -> G A.
 
+(* Generators without defaults. *)
+
+(** [oneOf_ g gs] runs a generator chosen uniformly from [g :: gs]. *)
+Parameter oneOf_ : forall {A : Type}, G A -> list (G A) -> G A.
+
+(** [freq_ w g wgs] runs a generator chosen from [(w, g) :: wgs]
+    with the distribution described by the weights. *)
+Parameter freq_ :
+  forall {A : Type}, nat * G A -> list (nat * G A) -> G A.
+
+(** [elems_ x xs] picks an element uniformly from [x :: xs]. *)
+Parameter elems_ :
+  forall {A : Type}, A -> list A -> G A.
+
 (* Correctness for derived generators *)
 Parameter semLiftGen :
   forall {A B} (f: A -> B) (g: G A),
@@ -179,6 +193,18 @@ Parameter semFrequencySize:
       if l' is nil then semGenSize def size else
       \bigcup_(x in l') semGenSize x.2 size.
 
+Parameter semFreq_ :
+  forall {A} (wg0 : nat * G A) (wgs : list (nat * G A)),
+    [seq wg <- wg0 :: wgs | wg.1 != 0] <> nil ->
+    semGen (freq_ wg0 wgs) <-->
+    \bigcup_(wg in wg0 :: wgs) semGen wg.2.
+
+Parameter semFreq_Size :
+  forall {A} (wg0 : nat * G A) (wgs : list (nat * G A)) s,
+    [seq wg <- wg0 :: wgs | wg.1 != 0] <> nil ->
+    semGenSize (freq_ wg0 wgs) s <-->
+    \bigcup_(wg in wg0 :: wgs) semGenSize wg.2 s.
+
 (** [backtrack] generates Some's unless all of the input generators are empty *)
 Parameter semBacktrackSize:
   forall {A} (l : list (nat * G (option A))) size,
@@ -277,27 +303,28 @@ Parameter mergeBinds :
 
 Module QcDefaultNotation.
 
-Notation " 'elems' [ x ] " := (elements x (cons x nil)) : qc_scope.
-Notation " 'elems' [ x ; y ] " := (elements x (cons x (cons y nil))) : qc_scope.
+Notation " 'elems' [ x ] " := (returnGen x) : qc_scope.
+Notation " 'elems' [ x ; y ] " := (elems_ x (cons y nil)) : qc_scope.
 Notation " 'elems' [ x ; y ; .. ; z ] " :=
-  (elements x (cons x (cons y .. (cons z nil) ..))) : qc_scope.
+  (elems_ x (cons y .. (cons z nil) ..)) : qc_scope.
+(* Why not [elems (x :: l)]? Also [oneOf], [freq]? *)
 Notation " 'elems' ( x ;; l ) " :=
-  (elements x (cons x l)) (at level 201, no associativity) : qc_scope.
+  (elems_ x l) (at level 201, no associativity) : qc_scope.
 
-Notation " 'oneOf' [ x ] " := (oneof x (cons x nil)) : qc_scope.
-Notation " 'oneOf' [ x ; y ] " := (oneof x (cons x (cons y nil))) : qc_scope.
+Notation " 'oneOf' [ x ] " := x : qc_scope.
+Notation " 'oneOf' [ x ; y ] " := (oneOf_ x (cons y nil)) : qc_scope.
 Notation " 'oneOf' [ x ; y ; .. ; z ] " :=
-  (oneof x (cons x (cons y .. (cons z nil) ..))) : qc_scope.
+  (oneOf_ x (cons y .. (cons z nil) ..)) : qc_scope.
 Notation " 'oneOf' ( x ;; l ) " :=
-  (oneof x (cons x l))  (at level 1, no associativity) : qc_scope.
+  (oneOf_ x l)  (at level 1, no associativity) : qc_scope.
 
-Notation " 'freq' [ x ] " := (frequency x nil) : qc_scope.
-Notation " 'freq' [ ( n , x ) ; y ] " :=
-  (frequency x (cons (n, x) (cons y nil))) : qc_scope.
-Notation " 'freq' [ ( n , x ) ; y ; .. ; z ] " :=
-  (frequency x (cons (n, x) (cons y .. (cons z nil) ..))) : qc_scope.
-Notation " 'freq' ( ( n , x ) ;; l ) " :=
-  (frequency x (cons (n, x) l)) (at level 1, no associativity) : qc_scope.
+Notation " 'freq' [ x ] " := x.2 : qc_scope.
+Notation " 'freq' [ x ; y ] " :=
+  (freq_ x (cons y nil)) : qc_scope.
+Notation " 'freq' [ x ; y ; .. ; z ] " :=
+  (freq_ x (cons y .. (cons z nil) ..)) : qc_scope.
+Notation " 'freq' ( x ;; l ) " :=
+  (freq_ x l) (at level 1, no associativity) : qc_scope.
 
 End QcDefaultNotation.
 
@@ -310,9 +337,10 @@ Parameter semElems : forall A (x : A) xs,
   semGen (elems (x ;; xs)) <--> x :: xs.
 
 Parameter semOneOfSize : forall A (g0 : G A) (gs : list (G A)) s,
-  semGenSize (oneOf (g0 ;; gs)) s  <--> \bigcup_(g in (g0 :: gs)) semGenSize g s.
+  semGenSize (oneOf (g0 ;; gs)) s <-->
+  \bigcup_(g in (g0 :: gs)) semGenSize g s.
 
 Parameter semOneOf : forall A (g0 : G A) (gs : list (G A)),
-  semGen (oneOf (g0 ;; gs))  <--> \bigcup_(g in (g0 :: gs)) semGen g.
+  semGen (oneOf (g0 ;; gs)) <--> \bigcup_(g in (g0 :: gs)) semGen g.
 
 End Sig.
