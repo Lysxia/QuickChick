@@ -16,6 +16,10 @@ src/CoArbitrary.v
 src/StringOT.v
 src/Show.v
 src/ShowFacts.v
+src/SplitMix.v
+src/SplitMixExtraction.v
+src/Splittable.v
+src/SplittableTheory.v
 src/State.v
 src/Checker.v
 src/SemChecker.v
