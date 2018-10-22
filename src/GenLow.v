@@ -15,7 +15,9 @@ Import MonadNotation.
 Open Scope monad_scope.
 
 From QuickChick Require Import
-     GenLowInterface RandomQC RoseTrees Sets Tactics.
+     Splittable SplittableTheory GenLowInterface RoseTrees Sets Tactics.
+
+From QuickChick Require RandomQC.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -35,7 +37,8 @@ Module GenLow : GenLowInterface.Sig.
   (** * Type of generators *)
 
   (* begin GenType *)
-  Inductive GenType (A:Type) : Type := MkGen : (nat -> RandomSeed -> A) -> GenType A.
+  Inductive GenType (A : Type) : Type :=
+    MkGen (runGen : forall seed `{Splittable seed}, nat -> seed -> A).
   (* end GenType *)
   
   Definition G := GenType.
@@ -43,35 +46,38 @@ Module GenLow : GenLowInterface.Sig.
   (** * Primitive generator combinators *)
   
   (* begin run *)
-  Definition run {A : Type} (g : G A) := match g with MkGen f => f end.
+  Definition run {A seed : Type} `{Splittable seed} (g : G A) :
+    nat -> seed -> A :=
+    match g with MkGen f => f _ _ end.
   (* end run *)
   
   Definition returnGen {A : Type} (x : A) : G A :=
-    MkGen (fun _ _ => x).
+    MkGen (fun _ _ _ _ => x).
 
   Definition bindGen {A B : Type} (g : G A) (k : A -> G B) : G B :=
-    MkGen (fun n r =>
+    MkGen (fun _ _ n r =>
              let (r1,r2) := randomSplit r in
              run (k (run g n r1)) n r2).
   
   Definition fmap {A B : Type} (f : A -> B) (g : G A) : G B :=
-    MkGen (fun n r => f (run g n r)).
+    MkGen (fun _ _ n r => f (run g n r)).
 
   Definition apGen {A B} (gf : G (A -> B)) (gg : G A) : G B :=
     bindGen gf (fun f => fmap f gg).
 
   Definition sized {A : Type} (f : nat -> G A) : G A :=
-    MkGen (fun n r => run (f n) n r).
+    MkGen (fun _ _ n r => run (f n) n r).
 
   Definition resize {A : Type} (n : nat) (g : G A) : G A :=
     match g with
-    | MkGen m => MkGen (fun _ => m n)
+    | MkGen m => MkGen (fun _ _ _ => m _ _ n)
     end.
 
   Definition promote {A : Type} (m : Rose (G A)) : G (Rose A) :=
-    MkGen (fun n r => fmapRose (fun g => run g n r) m).
+    MkGen (fun _ _ n r => fmapRose (fun g => run g n r) m).
 
-  Fixpoint rnds (s : RandomSeed) (n' : nat) : list RandomSeed :=
+  Fixpoint rnds {seed} `{Splittable seed}
+           (s : seed) (n' : nat) : list seed :=
     match n' with
       | O => nil
       | S n'' =>
@@ -85,9 +91,11 @@ Module GenLow : GenLowInterface.Sig.
       | S n' => createRange n' (cons n acc)
     end.
 
-  Definition choose {A : Type} `{ChoosableFromInterval A} (range : A * A) : G A :=
-    MkGen (fun _ r => fst (randomR range r)).
+  Definition choose {A : Type} `{RandomQC.ChoosableFromInterval A} (range : A * A) : G A.
+  Admitted. (*
+    MkGen (fun _ r => fst (randomR range r)). *)
 
+(*
   Definition sample (A : Type) (g : G A) : list A :=
     match g with
       | MkGen m =>
@@ -109,6 +117,7 @@ Module GenLow : GenLowInterface.Sig.
   Definition reallyUnsafePromote {r A : Type} (m : r -> G A) : G (r -> A) :=
     (bindGen reallyUnsafeDelay (fun eval => 
                                   returnGen (fun r => eval (m r)))).
+*)
 
   (* End Things *)
 
@@ -116,7 +125,8 @@ Module GenLow : GenLowInterface.Sig.
 
   (* Set of outcomes semantics definitions (repeated above) *)
   (* begin semGen *)
-  Definition semGenSize {A : Type} (g : G A) (s : nat) : set A := codom (run g s).
+  Definition semGenSize {A : Type} (g : G A) (s : nat) : set A :=
+    @codom Finite.Tree _ (run g s).
   Definition semGen {A : Type} (g : G A) : set A := \bigcup_s semGenSize g s.
 
   Definition semGenSizeOpt {A : Type} (g : G (option A)) (s : nat) : set A :=
@@ -133,15 +143,19 @@ Module GenLow : GenLowInterface.Sig.
       (exists n; split; [constructor | exists t; auto]).
   Qed.
 
-  Lemma bindGen_aux {A : Type} (g : G A) (n : nat) (r : RandomSeed) : semGen g (run g n r).
+  (* More things *)
+  Definition bindGen_aux {A seed : Type} `{Splittable seed}
+             (g : G A) (n : nat) (s : seed) : semGen g (run g n s).
   Proof.
+  Admitted. (* need parametricity
     unfold semGen, semGenSize, codom, bigcup.
     exists n; split => //=.
     exists r; auto.
   Qed.
+*)
 
   Definition bindGen' {A B : Type} (g : G A) (k : forall (a : A), (a \in semGen g) -> G B) : G B :=
-    MkGen (fun n r =>
+    MkGen (fun _ _ n r =>
              let (r1,r2) := randomSplit r in
              run (k (run g n r1) (bindGen_aux g n r1)) n r2).
 
@@ -202,8 +216,8 @@ Module GenLow : GenLowInterface.Sig.
   (* end semReturn *)
   Proof.
     rewrite /semGen /semGenSize /= bigcup_const ?codom_const //.
-            exact: randomSeed_inhabited.
-      by do 2! constructor.
+    exact: Finite.inhabited_Tree.
+    do 2 constructor.
   Qed.
   
   (* begin semReturnSize *)
@@ -212,7 +226,8 @@ Module GenLow : GenLowInterface.Sig.
   (* end semReturnSize *)
   Proof.
     unfold semGenSize.
-    rewrite codom_const; [ reflexivity | apply randomSeed_inhabited ].
+    rewrite codom_const;
+      [ reflexivity | apply Finite.inhabited_Tree ].
   Qed.
   
   Instance unsizedReturn {A} (x : A) : Unsized (returnGen x).
@@ -387,56 +402,6 @@ Module GenLow : GenLowInterface.Sig.
       eapply Hf; last eassumption. by apply/leP; apply Max.le_max_r.
   Qed.
   
-  Lemma semBindSizeMonotonicIncl_r {A B} (g : G A) (f : A -> G (option B)) (s1 : set A) (s2 : A -> set B) :
-    semGen g \subset s1 ->
-    (forall x, semGen (f x) \subset Some @: (s2 x) :|: [set None]) -> 
-    semGen (bindGen g f) \subset Some @: (\bigcup_(a in s1) s2 a)  :|: [set None].
-  Proof.
-    intros H1 H2 [x |] [s [_ [r H]]]; [| right; reflexivity ].
-    left.
-    eexists; split; [| reflexivity ].
-    simpl in H. destruct (randomSplit r) as [r1 r2] eqn:Heq.
-    destruct (run (f (run g s r1)) s r2) eqn:Heq2; try discriminate.
-    inv H. eexists (run g s r1). split.
-    eapply H1. eexists; split; [| eexists; reflexivity ].
-    now constructor.
-    edestruct H2.
-    * eexists. split; [| eexists; eauto ]. now constructor.
-    * inv H0. inv H3. inv H5. eassumption.
-    * inv H0.
-  Qed.
-
-  Lemma semBindSizeMonotonicIncl_l {A B} (g : G A) (f : A -> G (option B)) (s1 : set A)
-        (fs : A -> set B) 
-        `{Hg : SizeMonotonic _ g}
-        `{Hf : forall a, SizeMonotonicOpt (f a)} :
-    s1 \subset semGen g ->
-    (forall x, Some @: (fs x) \subset semGen (f x)) ->
-    (Some @: \bigcup_(a in s1) (fs a)) \subset semGen (bindGen g f).
-  Proof.
-  Admitted. (*
-    intros H1 H2 y [y' [[x [Hs1 Hfs2]] Heq]]; inv Heq; clear Heq.
-    eapply H1 in Hs1.
-    assert (Hin2 : (Some @: fs x) (Some y')).
-    { eexists; split; eauto. now constructor. }
-    eapply H2 in Hin2.
-    destruct Hg as [Hgmon].
-    destruct (Hf x) as [Hfgmon].
-    edestruct Hs1 as [s [_ Hgen]].
-    edestruct Hin2 as [s' [_ Hfgen]].
-    assert (Hin2' : ((fun u : option B => u) :&: semGenSize (f x) s') (Some y')).
-    { split; eauto. }
-    eapply Hgmon with (s2 := s + s')  in Hgen; [| now ssromega ].
-    eapply Hfgmon with (s2 := s + s')  in Hin2'; [| now ssromega ].
-    edestruct Hgen as [r1 Hr1].
-    edestruct Hin2' as [_ [r2 Hr2]].
-    eexists (s + s'). split; [ now constructor |].
-    edestruct (randomSplitAssumption r1 r2) as [r'' Heq].
-    eexists r''. simpl. rewrite Heq.
-    rewrite Hr1 Hr2. reflexivity.
-  Qed.
-*)
-  
   Lemma semFmapSize A B (f : A -> B) (g : G A) (size : nat) :
     semGenSize (fmap f g) size <--> f @: semGenSize g size.  Proof.
       by rewrite /fmap /semGenSize /= codom_comp.
@@ -465,20 +430,22 @@ Module GenLow : GenLowInterface.Sig.
     move => [a [H1 <-]]; eexists; split; eauto => //; eapply monotonic; eauto.
   Qed.
 
-  Lemma semChooseSize A `{ChoosableFromInterval A} (a1 a2 : A) :
+  Lemma semChooseSize A `{RandomQC.ChoosableFromInterval A} (a1 a2 : A) :
     RandomQC.leq a1 a2 ->
     forall size, semGenSize (choose (a1,a2)) size <-->
                        [set a | RandomQC.leq a1 a && RandomQC.leq a a2].
-  Proof. by move=> /= le_a1a2 m n; rewrite (randomRCorrect n a1 a2). Qed.
+  Proof.
+  Admitted. (* by move=> /= le_a1a2 m n; rewrite (randomRCorrect n a1 a2). Qed. *)
   
   Instance chooseUnsized {A} `{RandomQC.ChoosableFromInterval A} (a1 a2 : A) :
     Unsized (choose (a1, a2)).
-  Proof. by []. Qed.
+  Admitted. (* by []. Qed. *)
   
   Lemma semChoose A `{RandomQC.ChoosableFromInterval A} (a1 a2 : A) :
     RandomQC.leq a1 a2 ->
     (semGen (choose (a1,a2)) <--> [set a | RandomQC.leq a1 a && RandomQC.leq a a2]).
   Proof.
+  Admitted. (*
     move=> /= le_a1a2. rewrite <- (unsized_alt_def 1).
     move => m /=. rewrite (randomRCorrect m a1 a2) //.
   Qed.
@@ -508,6 +475,7 @@ Module GenLow : GenLowInterface.Sig.
   Lemma runPromote A (m : Rose (G A)) seed size :
     run (promote m) seed size = fmapRose (fun (g : G A) => run g seed size) m.
   Proof. by []. Qed.
+*)
 
   Lemma runFmap (A B : Type) (f : A -> B) (g : G A) seed size :
     run (fmap f g) seed size = f (run g seed size).
@@ -602,9 +570,38 @@ Module GenLow : GenLowInterface.Sig.
   Lemma semGenSizeInhabited {A} (g : G A) s :
     exists x, semGenSize g s x.
   Proof.
-    destruct randomSeed_inhabited as [r].
-    exists (run g s r); exists r; reflexivity.
+    destruct Finite.inhabited_Tree as [r].
+    eexists (run g s r ). unfold semGenSize, codom.
+    exists r. reflexivity.
   Qed.
+
+(*
+  Lemma promoteVariant :
+    forall {A B : Type} (a : A) (f : A -> SplitPath) (g : G B) size
+      (r r1 r2 : RandomSeed),
+      randomSplit r = (r1, r2) ->
+      run (reallyUnsafePromote (fun a => variant (f a) g)) size r a =
+      run g size (varySeed (f a) r1).
+  Proof.
+    move => A B a p g size r r1 r2 H.
+    rewrite /reallyUnsafePromote /variant.
+    destruct g. rewrite /= H. by [].
+  Qed.
+
+  Lemma semPromote A (m : Rose (G A)) :
+    semGen (promote m) <-->
+    codom2 (fun size seed => fmapRose (fun g => run g size seed) m).
+  Proof. by rewrite /codom2 curry_codom2l. Qed.
+
+  Lemma semPromoteSize (A : Type) (m : Rose (G A)) n :
+    semGenSize (promote m) n <-->
+               codom (fun seed => fmapRose (fun g => run g n seed) m).
+  Proof. by []. Qed.
+*)
+
+  Lemma runPromote A (m : Rose (G A)) seed size :
+    run (promote m) seed size = fmapRose (fun (g : G A) => run g seed size) m.
+  Proof. by []. Qed.
 
   Instance Functor_G : Functor G := {
     fmap A B := fmap;
@@ -621,7 +618,7 @@ Module GenLow : GenLowInterface.Sig.
   }.
 
   Definition thunkGen {A} (f : unit -> G A) : G A :=
-    MkGen (fun n r => run (f tt) n r).
+    MkGen (fun _ _ n r => run (f tt) n r).
 
   Lemma semThunkGenSize {A} (f : unit -> G A) s :
     semGenSize (thunkGen f) s <--> semGenSize (f tt) s.

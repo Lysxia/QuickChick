@@ -12,7 +12,7 @@ src/GenHighImpl.v
 src/GenHigh.v
 src/Classes.v
 src/Instances.v
-src/CoArbitrary.v
+# src/CoArbitrary.v
 src/StringOT.v
 src/Show.v
 src/ShowFacts.v

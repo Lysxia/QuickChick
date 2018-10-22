@@ -5,6 +5,8 @@ Require Import mathcomp.ssreflect.ssreflect.
 From mathcomp Require Import ssrfun ssrbool ssrnat eqtype.
 Require Import ZArith.
 
+From QuickChick Require Splittable.
+
 (* We axiomatize a random number generator
    (currently written in OCaml only) *)
 Axiom RandomSeed : Type.
@@ -757,7 +759,7 @@ Class ChoosableFromInterval (A : Type)  :=
        exists seed, fst (randomR (a1, a2) seed) = a)
   }.
 
-Program Instance ChooseBool : ChoosableFromInterval bool :=
+Instance ChooseBool : ChoosableFromInterval bool :=
   {
     randomR := randomRBool;
     randomRCorrect := randomRBoolCorrect
@@ -780,3 +782,13 @@ Instance ChooseN : ChoosableFromInterval N :=
     randomR := randomRN;
     randomRCorrect := randomRNCorrect
   }.
+
+Lemma randomN_correct : forall s n, fst (randomRN (0, n)%N s) <= n.
+Admitted.
+
+Instance Splittable_RandomSeed : Splittable.Splittable RandomSeed := {
+  randomSplit := randomSplit;
+  randomN s n := fst (randomRN (0, n)%N s);
+  randomBool s := fst (randomRBool (false, true) s);
+  randomN_correct := randomN_correct;
+}.

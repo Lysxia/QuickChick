@@ -183,6 +183,7 @@ Lemma semShrinking_idSize {C A} {HCheck : Checkable C}
     semCheckerSize (shrinking sh x pf) s <->
     semCheckableSize (pf x) s.
 Proof.
+Admitted. (*
   unfold semCheckableSize, shrinking, semCheckerSize, semGenSize, props.
   have [n <-] : exists n, S n  = 1000 by eexists; reflexivity.
   split.
@@ -204,6 +205,7 @@ Proof.
     simpl in *. move : H1 => [H1 H2]; subst.
     eexists. eexists. exists seed. reflexivity. rewrite Heq. reflexivity.
 Qed.
+*)
 
 Lemma semShrinking_id {C A} {HCheck : Checkable C}
          (sh : A -> list A) (x : A) (pf : A -> C)  :

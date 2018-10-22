@@ -1,7 +1,8 @@
 Set Warnings "-extraction-opaque-accessed,-extraction".
 Set Warnings "-notation-overridden,-parsing".
 
-Require Import ZArith List.
+From Coq Require Import
+     ZArith List.
 Require Import mathcomp.ssreflect.ssreflect.
 From mathcomp Require Import ssrfun ssrbool ssrnat eqtype.
 Require Import Numbers.BinNums.
@@ -129,20 +130,42 @@ Module Finite.
       | CoRandomBool b => coBool b
       end.
 
-  Definition def : Tree := CoRandomBool true.
+  (* We make some default values opaque, so proofs can't rely
+     on them. *)
+  Module Type TreeParamSig.
+    Parameter def : Tree.
+    Parameter split_def : Tree * Tree.
+    Parameter N_def : N -> N.
+    Parameter N_def_correct : forall n, N_def n <= n.
+    Parameter bool_def : bool.
+  End TreeParamSig.
+
+  Module Import TreeParam : TreeParamSig.
+    Definition def : Tree := CoRandomBool true.
+    Definition split_def : Tree * Tree := (def, def).
+    Definition N_def : N -> N := fun _ => N0.
+    Lemma N_def_correct n : N_def n <= n.
+    Proof. reflexivity. Qed.
+    Definition bool_def : bool := true.
+  End TreeParam.
+
+  Lemma inhabited_Tree : inhabited Tree.
+  Proof. constructor; exact def. Qed.
 
   Global Instance Splittable_Tree : Splittable Tree := {
     randomSplit := fun t =>
-      if t is CoRandomSplit ss then ss else (def, def);
+      if t is CoRandomSplit ss then ss else split_def;
     randomN := fun t =>
       if t is CoRandomN _ n then
         Infinite.step_fun n
-      else fun _ => 0%N;
+      else N_def;
     randomBool := fun t =>
-      if t is CoRandomBool b then b else true;
+      if t is CoRandomBool b then b else bool_def;
   }.
   Proof.
-    move => [_ | n | _] bound; try reflexivity.
+    move => [_ | n | _] bound;
+      try reflexivity;
+      try apply N_def_correct.
     intros; apply Infinite.step_fun_correct.
   Defined.
 

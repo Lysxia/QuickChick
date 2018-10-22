@@ -17,7 +17,9 @@ Import MonadNotation.
 Open Scope monad_scope.
 
 From QuickChick Require Import
-     RandomQC RoseTrees Sets.
+     Splittable SplittableTheory RoseTrees Sets.
+
+From QuickChick Require RandomQC.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -33,9 +35,12 @@ Definition isNone {T : Type} (u : option T) :=
     | None => true
   end.
 
-Lemma randomSplit_codom : codom randomSplit <--> setT.
+Lemma randomSplit_codom :
+  @codom Finite.Tree _ randomSplit <--> setT.
 Proof.
-by apply/subset_eqP; split=> // [[s1 s2]] _; apply: randomSplitAssumption.
+  apply/subset_eqP; split=> // [s12] _.
+  exists (Finite.CoRandomSplit s12).
+  by reflexivity.
 Qed.
 
 Module Type Sig.
@@ -49,16 +54,21 @@ Module Type Sig.
   Parameter returnGen  : forall {A : Type}, A -> G A.
   (* TODO: Add dependent combinator *)
   Parameter bindGen :  forall {A B : Type}, G A -> (A -> G B) -> G B.
-  Parameter run  : forall {A : Type}, G A -> nat -> RandomSeed -> A.
+  Parameter run  : forall {A seed : Type} `{Splittable seed},
+      G A -> nat -> seed -> A.
   Parameter fmap : forall {A B : Type}, (A -> B) -> G A -> G B.
   Parameter apGen : forall {A B : Type}, G (A -> B) -> G A -> G B.
   Parameter sized : forall {A: Type}, (nat -> G A) -> G A.
   Parameter resize : forall {A: Type}, nat -> G A -> G A.
   Parameter promote : forall {A : Type}, Rose (G A) -> G (Rose A).
-  Parameter choose : forall {A : Type} `{ChoosableFromInterval A}, (A * A) -> G A.
+
+  Parameter choose : forall {A : Type} `{RandomQC.ChoosableFromInterval A}, (A * A) -> G A.
+
+(*
   Parameter sample : forall {A : Type}, G A -> list A.
+*)
 
-
+(*
   (* LL: The abstraction barrier is annoying :D *)
   Parameter variant : forall {A : Type}, SplitPath -> G A -> G A.
   Parameter reallyUnsafePromote : forall {r A:Type}, (r -> G A) -> G (r -> A).
@@ -68,12 +78,13 @@ Module Type Sig.
                                randomSplit r = (r1,r2) ->                              
                                run (reallyUnsafePromote (fun a => variant (f a) g)) size r a = 
                                run g size (varySeed (f a) r1).
+*)
 
   (** * Semantics of generators *)
 
   (* Set of outcomes semantics definitions (repeated below) *)
   Definition semGenSize {A : Type} (g : G A) (size : nat) : set A :=
-    codom (run g size).
+    @codom Finite.Tree _ (run g size).
   Definition semGen {A : Type} (g : G A) : set A :=
     \bigcup_size semGenSize g size.
 
@@ -220,20 +231,6 @@ Module Type Sig.
          `{SizeMonotonic _ g} `{forall a, SizeMonotonic (f a)},
     semGen (bindGen g f) <--> \bigcup_(a in semGen g) semGen (f a).
 
-  Parameter semBindSizeMonotonicIncl_r :
-    forall {A B} (g : G A) (f : A -> G (option B)) (s1 : set A) (s2 : A -> set B),
-      semGen g \subset s1 ->
-      (forall x, semGen (f x) \subset Some @: (s2 x) :|: [set None]) -> 
-      semGen (bindGen g f) \subset Some @: (\bigcup_(a in s1) s2 a)  :|: [set None].
-
-  Parameter semBindSizeMonotonicIncl_l :
-    forall {A B} (g : G A) (f : A -> G (option B)) (s1 : set A) (fs : A -> set B) 
-      `{Hg : SizeMonotonic _ g}
-      `{Hf : forall a, SizeMonotonicOpt (f a)},
-    s1 \subset semGen g ->
-    (forall x, Some @: (fs x) \subset semGen (f x)) ->
-    (Some @: \bigcup_(a in s1) (fs a)) \subset semGen (bindGen g f).
-
   Parameter semFmap :
     forall A B (f : A -> B) (g : G A),
       semGen (fmap f g) <--> f @: semGen g.
@@ -301,6 +298,7 @@ Module Type Sig.
   Declare Instance unsizedResize {A} (g : G A) n : 
     Unsized (resize n g).
 
+(*
   (* This (very concrete) spec is needed to prove shrinking *)
   Parameter semPromote :
     forall A (m : Rose (G A)),
@@ -311,21 +309,24 @@ Module Type Sig.
     forall (A : Type) (m : Rose (G A)) n,
       semGenSize (promote m) n <-->
       (fun t : Rose A =>
-         exists (seed : RandomSeed),
-           fmapRose (fun g : G A => run g n seed) m = t).
+         exists (s : Finite.Tree),
+           fmapRose (fun g : G A => run g n s) m = t).
 
   (* Those are too concrete, but I need them to prove shrinking.
    Does this reveal a weakness in our framework?
    Should we try to get rid of this?
    This is expected since the spec of promote is too concrete. *)
+*)
 
   Parameter runFmap :
     forall (A B : Type) (f : A -> B) (g : G A) seed size,
       run (fmap f g) seed size = f (run g seed size).
 
+(*
   Parameter runPromote :
     forall A (m : Rose (G A)) seed size,
       run (promote m) seed size = fmapRose (fun (g : G A) => run g seed size) m.
+*)
   
   Parameter semFmapBind :
     forall A B C (g : G A) (f1 : B -> C) (f2 : A -> G B),
