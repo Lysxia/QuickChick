@@ -32,49 +32,201 @@ Import ListNotations.
 Open Scope fun_scope.
 Open Scope set_scope.
 
+Module Raw.
+
+  Definition G (A : Type) : Type :=
+    forall seed `{Splittable seed}, nat -> seed -> A.
+
+  Definition extensional {A : Type} (g : G A) : Prop :=
+    forall seed `{Splittable seed} n,
+      codom (g seed _ n) \subset
+      codom (g Finite.Tree _ n).
+
+  Definition semGenSize {A : Type} (g : G A) (n : nat) : set A :=
+    codom (g Finite.Tree _ n).
+
+  Definition semGen {A : Type} (g : G A) : set A :=
+    \bigcup_s semGenSize g s.
+
+  Lemma semGenWithSize {A : Type} (g : G A) (n : nat) (x : A) :
+    x \in semGenSize g n -> x \in semGen g.
+  Proof.
+    exists n; split; [constructor | auto].
+  Qed.
+
+  Definition ret {A : Type} (x : A) : G A :=
+    fun _ _ _ _ => x.
+
+  Lemma extensionalRet {A : Type} {x : A} : extensional (ret x).
+  Proof.
+    intros seed Sseed n a [? Hseed].
+    destruct Finite.inhabited_Tree as [t].
+    exists t; auto.
+  Qed.
+
+  Definition bind {A B : Type} (g : G A) (k : A -> G B) : G B :=
+    fun _ _ n s =>
+      let '(s1, s2) := randomSplit s in
+      k (g _ _ n s1) _ _ n s2.
+
+  Lemma extensionalBind {A B : Type} {g : G A} {k : A -> G B} :
+    extensional g ->
+    (forall a, (a \in semGen g) -> extensional (k a)) ->
+    extensional (bind g k).
+  Proof.
+    intros ext_g ext_k seed Sseed n b [s Hs].
+    unfold bind in *.
+    destruct (randomSplit s) as [s1 s2].
+    specialize (ext_g _ _ n (g _ _ n s1) codom_apply).
+    destruct (ext_k _ (semGenWithSize ext_g) _ _ n
+                    (k (g _ _ n s1) _ _ n s2) codom_apply)
+      as [t2 Ht2].
+    destruct ext_g as [t1 Ht1].
+    exists (Finite.CoRandomSplit (t1, t2)); simpl.
+    rewrite Ht1 Ht2. auto.
+  Qed.
+
+  Definition fmap {A B : Type} (f : A -> B) (g : G A) : G B :=
+    (fun _ _ n s => f (g _ _ n s)).
+
+  Lemma extensionalFmap {A B : Type} {f : A -> B} {g : G A} :
+    extensional g ->
+    extensional (fmap f g).
+  Proof.
+    intros ext_g seed Sseed n b [s Hseed].
+    destruct (ext_g _ _ n (g _ _ n s) codom_apply) as [t Ht].
+    exists t; unfold fmap in *; rewrite Ht; auto.
+  Qed.
+
+  Definition sized {A : Type} (f : nat -> G A) : G A :=
+    (fun _ _ n s => f n _ _ n s).
+
+  Definition resize {A : Type} (n : nat) (g : G A) : G A :=
+    (fun _ _ _ => g _ _ n).
+
+  Lemma extensionalSized {A : Type} {f : nat -> G A} :
+    (forall n, extensional (f n)) ->
+    extensional (sized f).
+  Proof.
+    intros ext_f seed Sseed n b [s Hseed].
+    destruct (ext_f n _ _ n (f n _ _ n s) codom_apply) as [t Ht].
+    exists t; unfold sized in *; rewrite Ht; auto.
+  Qed.
+
+  Lemma extensionalResize {A : Type} {n : nat} {g : G A} :
+    extensional g ->
+    extensional (resize n g).
+  Proof.
+    intros ext_g seed Sseed n' b [s Hseed].
+    destruct (ext_g _ _ n (g _ _ n s) codom_apply) as [t Ht].
+    exists t; unfold resize in *; rewrite Ht; auto.
+  Qed.
+
+  Definition promote {A : Type} (m : Rose (G A)) : G (Rose A) :=
+    fun _ _ n s => fmapRose (fun g => g _ _ n s) m.
+
+  (* More things *)
+  Definition bind_aux' {A seed : Type} `{Splittable seed}
+             {g : G A} (ext_g : extensional g)
+             {n : nat} {s : seed} : semGen g (g _ _ n s).
+  Proof.
+    exists n; split; [ constructor | ].
+    eapply ext_g.
+    apply codom_apply.
+  Qed.
+
+  Definition bind' {A B : Type} (g : G A) (ext_g : extensional g)
+             (k : forall (a : A), (a \in semGen g) -> G B)
+    : G B :=
+    fun _ _ n s =>
+      let '(s1, s2) := randomSplit s in
+      k (g _ _ n s1) (bind_aux' ext_g) _ _ n s2.
+
+  Lemma extensionalBind' {A B : Type} {g : G A}
+        {k : forall a : A, a \in semGen g -> G B}
+        (ext_g : extensional g) :
+    (forall a (H : a \in semGen g), extensional (k a H)) ->
+    extensional (bind' ext_g k).
+  Proof.
+    (* Unprovable, needs at least UIP *)
+  Admitted.
+(*
+    intros ext_k seed Sseed n b [s Hs].
+    unfold bind' in *.
+    destruct (randomSplit s) as [s1 s2].
+    pose proof (ext_g _ _ n (g _ _ n s1) codom_apply) as ext_g'.
+    destruct (ext_k _ (semGenWithSize ext_g') _ _ n
+                    (k (g _ _ n s1) _ _ _ n s2) codom_apply)
+      as [t2 Ht2].
+    destruct ext_g' as [t1 Ht1].
+    exists (Finite.CoRandomSplit (t1, t2)); simpl.
+    rewrite Ht1 Ht2. auto.
+  Qed.
+*)
+
+End Raw.
+
 Module GenLow : GenLowInterface.Sig.
 
   (** * Type of generators *)
 
   (* begin GenType *)
-  Inductive GenType (A : Type) : Type :=
-    MkGen (runGen : forall seed `{Splittable seed}, nat -> seed -> A).
+  Record GenType (A : Type) : Type := MkGen {
+    runGen : Raw.G A;
+    extGen : Raw.extensional runGen;
+  }.
   (* end GenType *)
+
+  Arguments extGen {A g}.
   
   Definition G := GenType.
 
   (** * Primitive generator combinators *)
-  
+
   (* begin run *)
   Definition run {A seed : Type} `{Splittable seed} (g : G A) :
-    nat -> seed -> A :=
-    match g with MkGen f => f _ _ end.
+    nat -> seed -> A := runGen g _.
   (* end run *)
-  
-  Definition returnGen {A : Type} (x : A) : G A :=
-    MkGen (fun _ _ _ _ => x).
 
-  Definition bindGen {A B : Type} (g : G A) (k : A -> G B) : G B :=
-    MkGen (fun _ _ n r =>
-             let (r1,r2) := randomSplit r in
-             run (k (run g n r1)) n r2).
-  
-  Definition fmap {A B : Type} (f : A -> B) (g : G A) : G B :=
-    MkGen (fun _ _ n r => f (run g n r)).
+  Definition returnGen {A : Type} (x : A) : G A := {|
+    runGen := Raw.ret x;
+    extGen := Raw.extensionalRet;
+  |}.
+
+  Definition bindGen {A B : Type} (g : G A) (k : A -> G B) : G B := {|
+    runGen := Raw.bind (runGen g) (fun x => runGen (k x));
+    extGen := Raw.extensionalBind extGen (fun _ _ => extGen);
+  |}.
+
+  Definition bindGenOpt {A B} (g : G (option A)) (f : A -> G (option B)) : G (option B) :=
+    bindGen g (fun ma =>
+                 match ma with
+                   | None => returnGen None
+                   | Some a => f a
+                 end).
+
+  Definition fmap {A B : Type} (f : A -> B) (g : G A) : G B := {|
+    runGen := Raw.fmap f (runGen g);
+    extGen := Raw.extensionalFmap extGen;
+  |}.
 
   Definition apGen {A B} (gf : G (A -> B)) (gg : G A) : G B :=
     bindGen gf (fun f => fmap f gg).
 
-  Definition sized {A : Type} (f : nat -> G A) : G A :=
-    MkGen (fun _ _ n r => run (f n) n r).
-
-  Definition resize {A : Type} (n : nat) (g : G A) : G A :=
-    match g with
-    | MkGen m => MkGen (fun _ _ _ => m _ _ n)
-    end.
-
+(*
   Definition promote {A : Type} (m : Rose (G A)) : G (Rose A) :=
     MkGen (fun _ _ n r => fmapRose (fun g => run g n r) m).
+*)
+
+  Definition sized {A : Type} (f : nat -> G A) : G A := {|
+    runGen := Raw.sized (fun n => runGen (f n));
+    extGen := Raw.extensionalSized (fun n => extGen);
+  |}.
+
+  Definition resize {A : Type} (n : nat) (g : G A) : G A := {|
+    runGen := Raw.resize n (runGen g);
+    extGen := Raw.extensionalResize extGen;
+  |}.
 
   Fixpoint rnds {seed} `{Splittable seed}
            (s : seed) (n' : nat) : list seed :=
@@ -126,7 +278,7 @@ Module GenLow : GenLowInterface.Sig.
   (* Set of outcomes semantics definitions (repeated above) *)
   (* begin semGen *)
   Definition semGenSize {A : Type} (g : G A) (s : nat) : set A :=
-    @codom Finite.Tree _ (run g s).
+    codom (@run _ Finite.Tree _ g s).
   Definition semGen {A : Type} (g : G A) : set A := \bigcup_s semGenSize g s.
 
   Definition semGenSizeOpt {A : Type} (g : G (option A)) (s : nat) : set A :=
@@ -143,21 +295,10 @@ Module GenLow : GenLowInterface.Sig.
       (exists n; split; [constructor | exists t; auto]).
   Qed.
 
-  (* More things *)
-  Definition bindGen_aux {A seed : Type} `{Splittable seed}
-             (g : G A) (n : nat) (s : seed) : semGen g (run g n s).
-  Proof.
-  Admitted. (* need parametricity
-    unfold semGen, semGenSize, codom, bigcup.
-    exists n; split => //=.
-    exists r; auto.
-  Qed.
-*)
-
-  Definition bindGen' {A B : Type} (g : G A) (k : forall (a : A), (a \in semGen g) -> G B) : G B :=
-    MkGen (fun _ _ n r =>
-             let (r1,r2) := randomSplit r in
-             run (k (run g n r1) (bindGen_aux g n r1)) n r2).
+  Definition bindGen' {A B : Type} (g : G A) (k : forall (a : A), (a \in semGen g) -> G B) : G B := {|
+    runGen := Raw.bind' extGen (fun a H => runGen (k a H));
+    extGen :=  Raw.extensionalBind' (fun _ _ => extGen);
+  |}.
 
   (** * Semantic properties of generators *)
 
@@ -215,9 +356,10 @@ Module GenLow : GenLowInterface.Sig.
   Lemma semReturn {A} (x : A) : semGen (returnGen x) <--> [set x].
   (* end semReturn *)
   Proof.
-    rewrite /semGen /semGenSize /= bigcup_const ?codom_const //.
-    exact: Finite.inhabited_Tree.
-    do 2 constructor.
+    rewrite /semGen /semGenSize /=. unfold Raw.ret.
+    rewrite bigcup_const; [|do 2 constructor].
+    rewrite codom_const; [| exact Finite.inhabited_Tree].
+    reflexivity.
   Qed.
   
   (* begin semReturnSize *)
@@ -353,6 +495,27 @@ Module GenLow : GenLowInterface.Sig.
     - eapply monotonic; eauto.
     - eapply H0; eauto. exists s1; split; auto. constructor.
       eexists; eauto.
+  Qed.
+
+  Instance bindOptMonotonic
+           {A B} (g : G (option A)) (f : A -> G (option B))
+           `{SizeMonotonic _ g} `{forall x, SizeMonotonic (f x)} :
+    SizeMonotonic (bindGenOpt g f).
+  Proof.
+    intros s1 s2 Hleq.
+    intros x Hx. eapply semBindSize in Hx.
+    destruct Hx as [a [Hg Hf]].
+    destruct a as [a | ].
+    - eapply H in Hg; try eassumption.
+      eapply H0 in Hf; try eassumption.
+      eapply semBindSize.
+      eexists; split; eauto.
+    - eapply H in Hg; try eassumption.
+      eapply semReturnSize in Hf. inv Hf.
+      eapply semBindSize.
+      eexists; split; eauto. simpl.
+      eapply semReturnSize.
+      reflexivity.
   Qed.
   
   (* begin semBindUnsized1 *)
@@ -555,17 +718,16 @@ Module GenLow : GenLowInterface.Sig.
   Qed.
   
   Lemma semResize A n (g : G A) : semGen (resize n g) <--> semGenSize g n .
-  Proof.
-      by case: g => g; rewrite /semGen /semGenSize /= bigcup_const.
-  Qed.
+  Proof. firstorder. Qed.
 
   Lemma semSizeResize A (s n : nat) (g : G A) :
     semGenSize (resize n g) s <--> semGenSize g n.
-  Proof. by case: g => g; rewrite /semGenSize. Qed.
+  Proof. firstorder. Qed.
   
   Instance unsizedResize {A} (g : G A) n :
     Unsized (resize n g).
-  Proof. by case: g => g; rewrite /semGenSize. Qed.
+  Proof. firstorder. Qed.
+
 
   Lemma semGenSizeInhabited {A} (g : G A) s :
     exists x, semGenSize g s x.
@@ -597,11 +759,12 @@ Module GenLow : GenLowInterface.Sig.
     semGenSize (promote m) n <-->
                codom (fun seed => fmapRose (fun g => run g n seed) m).
   Proof. by []. Qed.
-*)
 
   Lemma runPromote A (m : Rose (G A)) seed size :
     run (promote m) seed size = fmapRose (fun (g : G A) => run g seed size) m.
   Proof. by []. Qed.
+*)
+
 
   Instance Functor_G : Functor G := {
     fmap A B := fmap;
@@ -617,8 +780,10 @@ Module GenLow : GenLowInterface.Sig.
     bind A B := bindGen;
   }.
 
-  Definition thunkGen {A} (f : unit -> G A) : G A :=
-    MkGen (fun _ _ n r => run (f tt) n r).
+  Definition thunkGen {A} (f : unit -> G A) : G A := {|
+    runGen := fun _ _ n r => runGen (f tt) _ n r;
+    extGen := extGen;
+  |}.
 
   Lemma semThunkGenSize {A} (f : unit -> G A) s :
     semGenSize (thunkGen f) s <--> semGenSize (f tt) s.

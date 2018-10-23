@@ -60,11 +60,11 @@ Module Type Sig.
   Parameter apGen : forall {A B : Type}, G (A -> B) -> G A -> G B.
   Parameter sized : forall {A: Type}, (nat -> G A) -> G A.
   Parameter resize : forall {A: Type}, nat -> G A -> G A.
-  Parameter promote : forall {A : Type}, Rose (G A) -> G (Rose A).
 
   Parameter choose : forall {A : Type} `{RandomQC.ChoosableFromInterval A}, (A * A) -> G A.
 
 (*
+  Parameter promote : forall {A : Type}, Rose (G A) -> G (Rose A).
   Parameter sample : forall {A : Type}, G A -> list A.
 *)
 
@@ -205,7 +205,7 @@ Module Type Sig.
 
   Declare Instance bindMonotonicOpt
           {A B} (g : G A) (f : A -> G (option B))
-          `{SizeMonotonic _ g} `{forall x, SizeMonotonicOpt (f x)} : 
+          `{SizeMonotonic _ g} `{forall x, SizeMonotonicOpt (f x)} :
     SizeMonotonicOpt (bindGen g f).
 
   Declare Instance bindMonotonicStrong
