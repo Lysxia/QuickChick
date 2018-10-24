@@ -213,11 +213,6 @@ Module GenLow : GenLowInterface.Sig.
   Definition apGen {A B} (gf : G (A -> B)) (gg : G A) : G B :=
     bindGen gf (fun f => fmap f gg).
 
-(*
-  Definition promote {A : Type} (m : Rose (G A)) : G (Rose A) :=
-    MkGen (fun _ _ n r => fmapRose (fun g => run g n r) m).
-*)
-
   Definition sized {A : Type} (f : nat -> G A) : G A := {|
     runGen := Raw.sized (fun n => runGen (f n));
     extGen := Raw.extensionalSized (fun n => extGen);
@@ -227,6 +222,11 @@ Module GenLow : GenLowInterface.Sig.
     runGen := Raw.resize n (runGen g);
     extGen := Raw.extensionalResize extGen;
   |}.
+
+(*
+  Definition promote {A : Type} (m : Rose (G A)) : G (Rose A) :=
+    MkGen (fun _ _ n r => fmapRose (fun g => run g n r) m).
+*)
 
   Fixpoint rnds {seed} `{Splittable seed}
            (s : seed) (n' : nat) : list seed :=
@@ -764,7 +764,6 @@ Module GenLow : GenLowInterface.Sig.
     run (promote m) seed size = fmapRose (fun (g : G A) => run g seed size) m.
   Proof. by []. Qed.
 *)
-
 
   Instance Functor_G : Functor G := {
     fmap A B := fmap;

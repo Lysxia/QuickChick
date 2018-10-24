@@ -1153,14 +1153,11 @@ Proof.
     edestruct (pickDrop_exists lg n) as [[m [g' [lg' [Hin' [Hdrop [Hneq [Heq1 [Heq2 Hlen]]]]]]]] _];
       subst; eauto.
     rewrite Hdrop in Heqd; inv Heqd. subst.
+    eapply semBindSize.
+    eexists n. split.
+    eapply semChooseSize; now eauto.
+    rewrite Hdrop. eapply semBindSize.
     destruct b as [b |].
-    + eapply semBindSize.
-      eexists n. split.
-      eapply semChooseSize; now eauto.
-      rewrite Hdrop. eapply semBindSize.
-      exists (Some b). split. eapply Hsub in Hin'.
-      eapply monotonicOpt; eauto.
-      apply semReturnSize; apply semReturnSize in Hf; auto.
     + Admitted. (*
       (* have Hin :(isSome :&: semGenSize (backtrackFuel fuel (sum_fst lg - k) gs') s1) (Some a).
       { split ; eauto. } *)
