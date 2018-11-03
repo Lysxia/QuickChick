@@ -310,7 +310,7 @@ Definition quickCheckWith {prop : Type} {_ : Checkable prop}
                 rnd             (* randomSeed        *)
                 0               (* numSuccessShrinks *)
                 0               (* numTryShrinks     *)
-       ) (run (checker p)).
+       ) (checker p _).
 
 Fixpoint showCollectStatistics (l : list (string * nat)) :=
   match l with

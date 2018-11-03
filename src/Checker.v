@@ -90,7 +90,7 @@ Record QProp : Type :=
       unProp : Rose Result
     }.
 
-Definition Checker : Type := G QProp.
+Definition Checker : Type := Raw.G QProp.
 
 Class Checkable (A : Type) : Type :=
   {
@@ -104,7 +104,7 @@ Definition liftBool (b : bool) : Result :=
 
 Definition mapProp {P : Type} {_ : Checkable P}
            (f : QProp -> QProp) (prop : P) : Checker :=
-  fmap f (checker prop).
+  Raw.fmap f (checker prop).
 
 Definition mapRoseResult {P : Type} {_ : Checkable P}
            (f : Rose Result -> Rose Result) (prop : P) : Checker :=
@@ -117,7 +117,7 @@ Definition mapTotalResult {prop : Type} {_ : Checkable prop}
 Global Instance testResult : Checkable Result :=
   {|
     (* Left a protectResults out! *)
-    checker r := returnGen (MkProp (returnRose r))
+    checker r := Raw.ret (MkProp (returnRose r))
   |}.
 
 Global Instance testBool : Checkable bool :=
@@ -133,12 +133,17 @@ Global Instance testUnit : Checkable unit :=
 
 Global Instance testProp : Checkable QProp :=
   {|
-    checker p := returnGen p
+    checker p := Raw.ret p
+  |}.
+
+Global Instance testRawGenProp (P : Type) `{Checkable P} : Checkable (Raw.G P) :=
+  {|
+    checker p := Raw.bind p checker
   |}.
 
 Global Instance testGenProp (P : Type) `{Checkable P} : Checkable (G P) :=
   {|
-    checker p := bindGen p checker
+    checker p := Raw.bind (fun _ _ => run p) checker
   |}.
 
 Global Instance testChecker : Checkable Checker :=
@@ -168,15 +173,20 @@ Definition props {prop A : Type} `{Checkable prop}
            (pf : A -> prop) (shrinker : A -> list A) (x : A) : Rose Checker :=
   props' 1000 pf shrinker x.
 
+Definition shrinking_ {prop A : Type} `{Checkable prop}
+           (f : Rose QProp -> Rose Result)
+           (shrinker : A -> list A) (x0 : A) (pf : A -> prop) : Checker :=
+  Raw.fmap
+    (fun x => MkProp (f x))
+    (Raw.promote (props pf shrinker x0)).
+
 Definition shrinking {prop A : Type} `{Checkable prop}
            (shrinker : A -> list A) (x0 : A) (pf : A -> prop) : Checker :=
-  fmap (fun x => MkProp (joinRose (fmapRose unProp x)))
-       (promote (props pf shrinker x0)).
+  shrinking_ (fun x => bindRose x unProp) shrinker x0 pf.
 
 Definition shrinkingNondet {prop A : Type} `{Checkable prop} (n : nat)
           (shrinker : A -> list A) (x0 : A) (pf : A -> prop) : Checker :=
-  fmap (fun x => MkProp (repeatRose n (joinRose (fmapRose unProp x))))
-       (promote (props pf shrinker x0)).
+  shrinking_ (fun x => repeatRose n (bindRose x unProp)) shrinker x0 pf.
   
 Definition callback {prop : Type} `{Checkable prop}
            (cb : Callback) : prop -> Checker :=
@@ -225,47 +235,45 @@ Definition tag {prop : Type} {_ : Checkable prop} (t : string) : prop -> Checker
   mapTotalResult (fun res => setTag res t).
 
 Definition implication {prop : Type} `{Checkable prop} (b : bool) (p : prop) : Checker :=
-  if b then checker p else (returnGen (MkProp (returnRose rejected))).
+  if b then checker p else (Raw.ret (MkProp (returnRose rejected))).
 
 Definition forAll {A prop : Type} {_ : Checkable prop} `{Show A}
            (gen : G A)  (pf : A -> prop) : Checker :=
-  bindGen gen (fun x =>
+  Raw.bind (fun _ _ => run gen) (fun x =>
                  printTestCase (show x ++ newline) (pf x)).
 
 Definition forAllMaybe {A prop : Type} {_ : Checkable prop} `{Show A}
            (gen : G (option A))  (pf : A -> prop) : Checker :=
-  bindGen gen (fun mx =>
+  Raw.bind (fun _ _ => run gen) (fun mx =>
                  match mx with
                  | Some x => printTestCase (show x ++ newline) (pf x)
                  | None => checker tt
                  end
               ).
 
-
 Definition forAllProof {A prop : Type} {C : Checkable prop} `{S : Show A}
            (gen : G A)  (pf : forall (x : A), semGen gen x -> prop) : Checker :=
-  bindGen' gen (fun x H => printTestCase (show x ++ newline) (pf x H)).
+  @Raw.bind' _ _ (fun _ _ => run gen) (@extensional_G _ _)
+     (fun x H => printTestCase (show x ++ newline) (pf x H)).
 Arguments forAllProof {A} {prop} {C} {S} _ _.
+
+Definition forAllShrinkShow_ {A prop : Type} {_ : Checkable prop}
+           (show' : A -> string)
+           (gen : G A) (shrinker_ : _) (pf : A -> prop) : Checker :=
+  Raw.bind (fun _ _ => run gen) (fun x : A =>
+    shrinker_ x (fun x' => printTestCase (show' x' ++ newline) (pf x'))).
 
 Definition forAllShrink {A prop : Type} {_ : Checkable prop} `{Show A}
            (gen : G A) (shrinker : A -> list A) (pf : A -> prop) : Checker :=
-
-  bindGen gen (fun x : A =>
-                 shrinking shrinker x (fun x' =>
-                                         printTestCase (show x' ++ newline) (pf x'))).
+  forAllShrinkShow_ show gen (shrinking shrinker) pf.
 
 Definition forAllShrinkNonDet {A prop : Type} {_ : Checkable prop} `{Show A}
            (n : nat) (gen : G A) (shrinker : A -> list A) (pf : A -> prop) : Checker :=
-
-  bindGen gen (fun x : A =>
-                 shrinkingNondet n shrinker x (fun x' =>
-                                         printTestCase (show x' ++ newline) (pf x'))).
+  forAllShrinkShow_ show gen (shrinkingNondet n shrinker) pf.
 
 Definition forAllShrinkShow {A prop : Type} {_ : Checkable prop}
            (gen : G A) (shrinker : A -> list A) (show' : A -> string) (pf : A -> prop) : Checker :=
-  bindGen gen (fun x =>
-                 shrinking shrinker x (fun x' =>
-                                         printTestCase (show' x') (pf x'))).
+  forAllShrinkShow_ show' gen (shrinking shrinker) pf.
 
 Global Instance testFun {A prop : Type} `{Show A}
        `{Arbitrary A} `{_ : Checkable prop} : Checkable (A -> prop) :=
@@ -320,17 +328,23 @@ Fixpoint conjAux (f : Result -> Result)
       end
   end.
 
-Definition mapGen {A B} (f : A -> G B) (l : list A) : G (list B) :=
-  bindGen (foldGen (fun acc a => 
-             bindGen (f a) (fun b => returnGen (cons b acc)))
-          l nil) (fun l => returnGen (rev l)).
+Fixpoint mapGen' {A B} (f : A -> Raw.G B) (acc : list B) (as_ : list A) :
+  Raw.G (list B) :=
+  match as_ with
+  | nil => Raw.ret (rev acc)
+  | a :: as' => Raw.bind (f a) (fun b => mapGen' f (b :: acc) as')
+  end.
+
+(* This is [traverse] in Haskell. *)
+Definition mapGen {A B} (f : A -> Raw.G B) (l : list A) : Raw.G (list B) :=
+  mapGen' f nil l.
 
 Fixpoint conjoin (l : list Checker) : Checker :=
 (*   trace ("Beginnning conjoin" ++ nl) ( *)
-  bindGen (mapGen (liftGen unProp) l) (fun rs =>
-          (returnGen (MkProp (let res := conjAux (fun x => x) rs in
-                              let '(MkRose r _) := res in 
-                              (* debug_stamps "Conjoin result: " r *) res
+  Raw.bind (mapGen (Raw.fmap unProp) l) (fun rs =>
+           (Raw.ret (MkProp (let res := conjAux (fun x => x) rs in
+                             let '(MkRose r _) := res in
+                             (* debug_stamps "Conjoin result: " r *) res
                              )))).
 
 Definition fmapRose' A B (r : Rose A) (f : A -> B) := fmapRose f r.
@@ -376,8 +390,8 @@ Definition disjAux (p q : Rose Result) : Rose Result :=
   else returnRose expectFailureError)).
 
 Definition disjoin (l : list Checker) : Checker := 
-  bindGen (mapGen (liftGen unProp) l) (fun rs =>
-          (returnGen (MkProp (
+  Raw.bind (mapGen (Raw.fmap unProp) l) (fun rs =>
+           (Raw.ret (MkProp (
                           fold_right disjAux (returnRose failed) rs
                         )))).
 

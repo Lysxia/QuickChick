@@ -25,14 +25,15 @@ Class DecOpt (P : Prop) := { decOpt : nat -> option bool }.
 Axiom checkable_size_limit : nat.
 Extract Constant checkable_size_limit => "10000".
 
-Import GenLow.GenLow.
+Import GenLow.
+
 (* Discard tests that run further than the limit *)
 (* For proofs, the size parameter will need to be taken into account
    to prove limit results. We just add it to the large, practical constant.
  *)
 Global Instance decOpt__checkable {P} `{DecOpt P} : Checkable P :=
   {| checker _ :=
-       sized (fun s =>
+       Raw.sized (fun s =>
                 match decOpt (checkable_size_limit + s) with
                 | Some b => checker b
                 | None => checker tt
