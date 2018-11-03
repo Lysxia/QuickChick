@@ -64,6 +64,14 @@ Module Raw.
     exists t; auto.
   Qed.
 
+  Lemma semRetSize A (x : A) (s : nat) :
+  semGenSize (ret x) s <--> [set x].
+  Proof.
+    unfold semGenSize.
+    rewrite codom_const;
+      [ reflexivity | apply Finite.inhabited_Tree ].
+  Qed.
+
   Definition bind {A B : Type} (g : G A) (k : A -> G B) : G B :=
     fun _ _ n s =>
       let '(s1, s2) := randomSplit s in
@@ -86,6 +94,14 @@ Module Raw.
     rewrite Ht1 Ht2. auto.
   Qed.
 
+  Lemma semBindSize A B (g : G A) (f : A -> G B) (s : nat) :
+    semGenSize (bind g f) s <-->
+    \bigcup_(a in semGenSize g s) semGenSize (f a) s.
+  Proof.
+    rewrite /semGenSize /bind /= bigcup_codom -curry_codom2l.
+      by rewrite -[codom (prod_curry _)]imsetT -randomSplit_codom -codom_comp.
+  Qed.
+
   Definition fmap {A B : Type} (f : A -> B) (g : G A) : G B :=
     (fun _ _ n s => f (g _ _ n s)).
 
@@ -96,6 +112,11 @@ Module Raw.
     intros ext_g seed Sseed n b [s Hseed].
     destruct (ext_g _ _ n (g _ _ n s) codom_apply) as [t Ht].
     exists t; unfold fmap in *; rewrite Ht; auto.
+  Qed.
+
+  Lemma semFmapSize A B (f : A -> B) (g : G A) (size : nat) :
+    semGenSize (fmap f g) size <--> f @: semGenSize g size.  Proof.
+      by rewrite /fmap /semGenSize /= codom_comp.
   Qed.
 
   Definition sized {A : Type} (f : nat -> G A) : G A :=
@@ -294,6 +315,15 @@ Module GenLow : GenLowInterface.Sig.
     split; intros [n [Hn [t H]]];
       (exists n; split; [constructor | exists t; auto]).
   Qed.
+
+  Lemma soundSemSize {A : Type} (g : G A) seed `{Splittable seed} n s :
+      run g n s \in semGenSize g n.
+  Proof.
+  Admitted.
+
+  Parameter soundSem :
+    forall {A : Type} (g : G A) seed `{Splittable seed} n s,
+      run g n s \in semGen g.
 
   Definition bindGen' {A B : Type} (g : G A) (k : forall (a : A), (a \in semGen g) -> G B) : G B := {|
     runGen := Raw.bind' extGen (fun a H => runGen (k a H));
@@ -829,3 +859,10 @@ Module GenLow : GenLowInterface.Sig.
   Qed.
 
 End GenLow.
+
+Lemma extensional_G {A : Type} (g : GenLow.G A) :
+  Raw.extensional (fun _ _ => GenLow.run g).
+Proof.
+  intros seed Splittable_seed n a [s Ha].
+  subst. apply GenLow.soundSemSize.
+Qed.

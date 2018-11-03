@@ -88,6 +88,14 @@ Module Type Sig.
   Definition semGen {A : Type} (g : G A) : set A :=
     \bigcup_size semGenSize g size.
 
+  Parameter soundSemSize :
+    forall {A : Type} (g : G A) seed `{Splittable seed} n s,
+      run g n s \in semGenSize g n.
+
+  Parameter soundSem :
+    forall {A : Type} (g : G A) seed `{Splittable seed} n s,
+      run g n s \in semGen g.
+
   (* Set of outcomes semantics for generators that can fail
      (ignoring [None] as a value). *)
   Definition semGenSizeOpt {A : Type} (g : G (option A)) (s : nat) : set A :=
