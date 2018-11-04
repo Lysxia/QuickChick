@@ -10,12 +10,12 @@ Class Splittable (seed : Type) : Type := {
   (* Split into two independent seeds. *)
   randomSplit : seed -> seed * seed;
   (* Random number less than or equal to bound. *)
-  randomN : seed -> N -> N;
+  randomN_0 : seed -> N -> N;
   (* Random boolean. *)
   randomBool : seed -> bool;
 
-  (* Specification of [randomN]. *)
-  randomN_correct : forall s bound, randomN s bound <= bound;
+  (* Specification of [randomN_0]. *)
+  randomN_0_correct : forall s bound, randomN_0 s bound <= bound;
 }.
 
 Module Generator.

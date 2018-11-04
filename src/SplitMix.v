@@ -4,8 +4,6 @@ Set Warnings "-notation-overridden,-parsing".
 From Coq Require Import
      Ascii String NArith.
 
-From mathcomp Require ssreflect ssrfun ssrbool ssrnat eqtype.
-
 From QuickChick Require Import
      Splittable.
 
@@ -312,10 +310,6 @@ Definition step (sb : bstream) : bool * bstream :=
 End BinaryStreams.
 End InternalBinaryStreams.
 
-End Internal.
-
-Module Import External.
-
 Export ExternalPrimitives.
 Import InternalPrimitives.
 Import InternalBinaryStreams.
@@ -375,18 +369,20 @@ Definition random_binary' {S : Type}
       end in
   retry 64 (to_bstream s).
 
-End External.
+End Internal.
 
 (* Big-endian [bound], little-endian result! *)
 Definition random_binary : State -> binary -> binary :=
   random_binary' split to_binary.
 
-Definition random_N (s : State) (bound : N) : N :=
+(* Random [N] between [0] and [bound], inclusive. *)
+Definition random_N_0 (s : State) (bound : N) : N :=
   match bound with
   | N0 => N0
   | Npos bound => N64_to_N (random_binary s (rev_pos bound))
   end.
 
+(* Random boolean. *)
 Definition random_bool (s : State) : bool :=
   lsb (to_binary s).
 
@@ -404,8 +400,10 @@ Import List.
 Import ListNotations.
 
 Definition example_N :=
-  map (fun x => random_N (of_seed x) 10)
+  map (fun x => random_N_0 (of_seed x) 10)
       [10;20;30;40;50;61;72;83;96;101;102;103]%N.
+
+(* Compute example_N. *)
 
 End Example.
 
@@ -416,16 +414,16 @@ Import ssrnat ssrbool.
 (* Concrete implementation of a splittable PRNG. *)
 Definition RandomSeed := State.
 
-Lemma randomN_correct : forall (s : State) (bound : N),
-    (random_N s bound <= bound).
+Lemma randomN_0_correct : forall (s : State) (bound : N),
+    (random_N_0 s bound <= bound).
 Proof.
 Admitted.
 
 Global Instance Splittable_State : Splittable State :=
   { randomSplit := split;
-    randomN := random_N;
+    randomN_0 := random_N_0;
     randomBool := random_bool;
-    randomN_correct := randomN_correct;
+    randomN_0_correct := randomN_0_correct;
   }.
 
 (* TODO: better ways to get an initial seed. *)
@@ -440,7 +438,7 @@ End Splittable.
 
 (* Sanity checks. *)
 Module Properties.
-Import External.
+Import Internal.
 Import InternalPrimitives.
 
 Example binary_from_to : (binary_to_N (N_to_binary 64 10) = 10)%N.

@@ -17,14 +17,14 @@ Set Bullet Behavior "Strict Subproofs".
    by a QuickChick generator. *)
 Class CoSplittable (seed : Type) `{Splittable seed} : Type := {
   corandomSplit : seed * seed -> seed;
-  corandomN : N -> N -> seed;
+  corandomN_0 : N -> N -> seed;
   corandomBool : bool -> seed;
 
   randomSplit_complete :
     forall ss, randomSplit (corandomSplit ss) = ss;
-  randomN_complete :
+  randomN_0_complete :
     forall (bound n : N),
-      n <= bound -> randomN (corandomN bound n) bound = n;
+      n <= bound -> randomN_0 (corandomN_0 bound n) bound = n;
   randomBool_complete : forall b, randomBool (corandomBool b) = b;
 }.
 
@@ -50,9 +50,9 @@ Module Infinite.
 
   Global Instance Splittable_Tree : Splittable Tree := {|
     randomSplit := fun '(Node ss _ _ _) => ss;
-    randomN := fun '(Node _ f _ _) bound => f bound;
+    randomN_0 := fun '(Node _ f _ _) bound => f bound;
     randomBool := fun '(Node _ _ _ b) => b;
-    randomN_correct := fun t bound =>
+    randomN_0_correct := fun t bound =>
       let '(Node _ _ g _) := t in g bound;
   |}.
 
@@ -62,8 +62,8 @@ Module Infinite.
   CoFixpoint seedToTree {seed} `{Splittable seed} (s : seed) :=
       let ss := randomSplit s in
       Node (seedToTree (fst ss), seedToTree (snd ss))
-           (randomN s)
-           (randomN_correct s)
+           (randomN_0 s)
+           (randomN_0_correct s)
            (randomBool s).
 
   Definition corandomSplit (ts : Tree * Tree) : Tree :=
@@ -72,7 +72,7 @@ Module Infinite.
   Definition corandomBool (b : bool) : Tree :=
     Node (def, def) (fun _ => 0%N) leq0n b.
 
-  (* [randomN_complete]. *)
+  (* [randomN_0_complete]. *)
   Definition step_fun (x : N) : N -> N :=
     fun bound => if x <= bound then x else 0%N.
 
@@ -82,11 +82,11 @@ Module Infinite.
     unfold step_fun. by destruct (x <= bound) eqn:e.
   Qed.
 
-  Definition corandomN (x : N) : Tree :=
+  Definition corandomN_0 (x : N) : Tree :=
     Node (def, def) _ (step_fun_correct x) false.
 
-  Lemma randomN_complete (bound x : N) :
-    x <= bound -> randomN (corandomN x) bound = x.
+  Lemma randomN_0_complete (bound x : N) :
+    x <= bound -> randomN_0 (corandomN_0 x) bound = x.
   Proof.
     move => H /=.
     unfold step_fun.
@@ -95,11 +95,11 @@ Module Infinite.
 
   Global Instance CoSplittable_Tree : CoSplittable Tree :=
     { corandomSplit := corandomSplit;
-      corandomN := fun _ => corandomN;
+      corandomN_0 := fun _ => corandomN_0;
       corandomBool := corandomBool;
 
       randomSplit_complete := fun '(_, _) => erefl;
-      randomN_complete := randomN_complete;
+      randomN_0_complete := randomN_0_complete;
       randomBool_complete := fun _ => erefl;
     }.
 
@@ -114,19 +114,19 @@ Module Finite.
 
   Inductive Tree : Type :=
   | CoRandomSplit : Tree * Tree -> Tree
-  | CoRandomN : N -> N -> Tree
+  | CoRandomN_0 : N -> N -> Tree
   | CoRandomBool : bool -> Tree.
 
   Definition Tree_ind (P : Tree -> Type)
            (coSplit : forall (ts : Tree * Tree),
                P ts.1 -> P ts.2 -> P (CoRandomSplit ts))
-           (coN : forall bound n, P (CoRandomN bound n))
+           (coN : forall bound n, P (CoRandomN_0 bound n))
            (coBool : forall b, P (CoRandomBool b)) :
     forall t, P t :=
     fix cata t :=
       match t with
       | CoRandomSplit ts => coSplit ts (cata ts.1) (cata ts.2)
-      | CoRandomN bound n => coN bound n
+      | CoRandomN_0 bound n => coN bound n
       | CoRandomBool b => coBool b
       end.
 
@@ -155,8 +155,8 @@ Module Finite.
   Global Instance Splittable_Tree : Splittable Tree := {
     randomSplit := fun t =>
       if t is CoRandomSplit ss then ss else split_def;
-    randomN := fun t =>
-      if t is CoRandomN _ n then
+    randomN_0 := fun t =>
+      if t is CoRandomN_0 _ n then
         Infinite.step_fun n
       else N_def;
     randomBool := fun t =>
@@ -171,11 +171,11 @@ Module Finite.
 
   Global Instance CoSplittable_Tree : CoSplittable Tree := {
     corandomSplit := CoRandomSplit;
-    corandomN := CoRandomN;
+    corandomN_0 := CoRandomN_0;
     corandomBool := CoRandomBool;
 
     randomSplit_complete := fun ss => erefl;
-    randomN_complete := Infinite.randomN_complete;
+    randomN_0_complete := Infinite.randomN_0_complete;
     randomBool_complete := fun b => erefl;
   }.
 
@@ -186,7 +186,7 @@ Module Finite.
     match t with
     | CoRandomSplit ts =>
       corandomSplit (treeToSeed ts.1, treeToSeed ts.2)
-    | CoRandomN bound x => corandomN bound x
+    | CoRandomN_0 bound x => corandomN_0 bound x
     | CoRandomBool b => corandomBool b
     end.
 
@@ -198,16 +198,16 @@ Module Finite.
     | CoRandomSplit ts =>
       let ss := randomSplit s in
       observeSeed ts.1 ss.1 && observeSeed ts.2 ss.2
-    | CoRandomN bound x => randomN s bound == x
+    | CoRandomN_0 bound x => randomN_0 s bound == x
     | CoRandomBool b => randomBool s == b
     end.
 
-  (* We need to check as a precondition that the [CoRandomN]
+  (* We need to check as a precondition that the [CoRandomN_0]
      leaves have bounds greater than the observed value. *)
   Fixpoint wfTree (t : Tree) : bool :=
     match t with
     | CoRandomSplit ts => wfTree ts.1 && wfTree ts.2
-    | CoRandomN bound x => x <= bound
+    | CoRandomN_0 bound x => x <= bound
     | CoRandomBool b => true
     end.
 
@@ -219,7 +219,7 @@ Module Finite.
     induction t as [ts IHt1 IHt2 | bound x | b]; move=> /= wf.
     - move: wf => /andP [/IHt1 Ht1 /IHt2 Ht2].
         by apply (introT andP); rewrite randomSplit_complete.
-    - by rewrite randomN_complete.
+    - by rewrite randomN_0_complete.
     - by rewrite randomBool_complete.
   Qed.
 
@@ -244,7 +244,7 @@ Module Finite.
       move=> //= s os.
     - move: os => /andP [/IHt1 Ht1 /IHt2 Ht2].
         by rewrite Ht1 Ht2.
-    - move: os => /eqP os. subst. apply randomN_correct.
+    - move: os => /eqP os. subst. apply randomN_0_correct.
   Qed.
 End Finite.
 

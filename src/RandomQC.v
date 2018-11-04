@@ -783,12 +783,12 @@ Instance ChooseN : ChoosableFromInterval N :=
     randomRCorrect := randomRNCorrect
   }.
 
-Lemma randomN_correct : forall s n, fst (randomRN (0, n)%N s) <= n.
+Lemma randomN_0_correct : forall s n, fst (randomRN (0, n)%N s) <= n.
 Admitted.
 
 Instance Splittable_RandomSeed : Splittable.Splittable RandomSeed := {
   randomSplit := randomSplit;
-  randomN s n := fst (randomRN (0, n)%N s);
+  randomN_0 s n := fst (randomRN (0, n)%N s);
   randomBool s := fst (randomRBool (false, true) s);
-  randomN_correct := randomN_correct;
+  randomN_0_correct := randomN_0_correct;
 }.

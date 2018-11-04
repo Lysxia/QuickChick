@@ -3,7 +3,7 @@ Require Import ExtrOcamlNatInt.
 Require Import ExtrOcamlZInt.
 
 Require Import SplitMix.
-Import External.
+Import SplitMix.Internal.
 
 Extract Inductive binary => "Int64.t"
   [ "(fun _ -> assert false)"
