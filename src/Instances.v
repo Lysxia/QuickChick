@@ -211,7 +211,7 @@ Qed.
 Instance boolSizeMonotonic : SizeMonotonic (@arbitrary bool _).
 Proof.
   unfold arbitrary, GenOfGenSized.
-  eapply sizedSizeMonotonic; unfold arbitrarySized, genBoolSized.
+  eapply sizedSizeMonotonic. unfold arbitrarySized, genBoolSized.
   intros _. eauto with typeclass_instances.
   intros n s1 s2 Hs. eapply subset_refl.
 Qed.

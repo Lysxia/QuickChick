@@ -361,9 +361,8 @@ Lemma semBindGenUnsized1 {A} (gen : G A) (f : A -> Checker) `{Unsized _ gen} :
 Proof.
   split; move => Hgen a.
   - move => [s [_ H']] s'. eapply unsized in H'.
-    eapply semBindGenSize in Hgen; eauto. eapply H'.
+    eapply semBindGenSize in Hgen; eauto.
   - eapply semBindGenSize; intros; apply Hgen; eexists; split => //; eauto.
-    eapply H0.
 Qed.
 
 Lemma semBindGenUnsized2 {A} (gen : G A) (f : A -> Checker)
@@ -377,7 +376,6 @@ Proof.
     eapply unsizedChecker_alt_def; eauto.
     eapply H'.
   - eapply semBindGenSize; intros; apply Hgen; eexists; split => //; eauto.
-    eapply H0.
 Qed.
 
 Lemma semBindGenSizeMonotonic {A} (gen : G A) (f : A -> Checker)
@@ -395,7 +393,6 @@ Proof.
     + specialize (Hgen s). eapply semBindGenSize in Hgen; eauto. 
       eapply monotonicChecker_alt_def; eauto.
   - eapply semBindGenSize; intros; apply Hgen; eexists; split => //; eauto.
-    eapply H1.
 Qed.
 
 Lemma semPredQPropSize (c : Checker) (s : nat) :

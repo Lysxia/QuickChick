@@ -20,7 +20,7 @@ elim: s i => [|x s IHs i]; first by case.
 by case: i.
 Qed.
 
-Module Impl (GenLow : GenLowInterface.Sig) :
+Module Impl (GenLow : GenLowInterface.Sig) <:
   GenHighInterface.Sig GenLow.
 Import GenLow.
 

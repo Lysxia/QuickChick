@@ -187,7 +187,7 @@ Module Raw.
 
 End Raw.
 
-Module GenLow : GenLowInterface.Sig.
+Module GenLow <: GenLowInterface.Sig.
 
   (** * Type of generators *)
 
@@ -364,7 +364,7 @@ Module GenLow : GenLowInterface.Sig.
       isNone :&: semGenSize g s2 \subset isNone :&: semGenSize g s1.
 
   (* Unsizedness trivially implies size-monotonicity *)
-  Lemma unsizedMonotonic {A} (g : G A) : Unsized g -> SizeMonotonic g. 
+  Instance unsizedMonotonic {A} (g : G A) : Unsized g -> SizeMonotonic g.
   Proof.
     intros s1 s2 Hleq.
     rewrite /unsized /monotonic => a H12.
