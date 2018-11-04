@@ -198,7 +198,7 @@ Proof.
     destruct (is_redblack_bool t') eqn:Hyp.
     + simpl; move: Hyp => /is_redblackP Hyp. apply H in Hyp. apply /is_redblackP; auto.
     + simpl; auto.
-  - simpl. eauto with typeclass_instances.
+  - eauto with typeclass_instances.
 Qed.
 
 (*
