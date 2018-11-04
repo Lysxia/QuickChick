@@ -9,6 +9,8 @@ From mathcomp Require ssreflect ssrfun ssrbool ssrnat eqtype.
 From QuickChick Require Import
      Splittable.
 
+Module Import Internal.
+
 (* Binary numbers. Most operations assume little-endianness,
    but this can also be used as a big-endian representation.
    This will be extracted to [Int64.t]. *)
@@ -310,6 +312,8 @@ Definition step (sb : bstream) : bool * bstream :=
 End BinaryStreams.
 End InternalBinaryStreams.
 
+End Internal.
+
 Module Import External.
 
 Export ExternalPrimitives.
@@ -386,7 +390,7 @@ Definition random_N (s : State) (bound : N) : N :=
 Definition random_bool (s : State) : bool :=
   lsb (to_binary s).
 
-Section Ex.
+Module Example.
 
 Import NArith.
 
@@ -403,7 +407,7 @@ Definition example_N :=
   map (fun x => random_N (of_seed x) 10)
       [10;20;30;40;50;61;72;83;96;101;102;103]%N.
 
-End Ex.
+End Example.
 
 Section Splittable.
 
