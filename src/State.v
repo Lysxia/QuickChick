@@ -1,7 +1,8 @@
 Set Implicit Arguments.
 
-Require Import GenLow.
-Require Import RandomQC.
+From QuickChick Require Import
+     GenLow SplitMix.
+
 Require Import Coq.Strings.String.
 
 Require Import StringOT.

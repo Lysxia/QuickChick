@@ -8,8 +8,10 @@ From mathcomp Require Import ssrnat ssrbool eqtype div.
 (* N.B.: this pulls in [ExtrOcamlString] (ExtractionQC also does) *)
 From SimpleIO Require Import CoqPervasives.
 
-From QuickChick Require Import RoseTrees RandomQC GenLow GenHigh SemChecker.
-From QuickChick Require Import Show Checker State Classes.
+From QuickChick Require SplitMix.
+From QuickChick Require Import
+     RoseTrees GenLow GenHigh SemChecker
+     Show Checker State Classes Splittable.
 
 Require Import Coq.Strings.Ascii.
 Require Import Coq.Strings.String.
@@ -29,6 +31,9 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Set Bullet Behavior "Strict Subproofs".
+
+Local Notation RandomSeed := SplitMix.RandomSeed.
+Local Notation newRandomSeed := SplitMix.newRandomSeed.
 
 Record Args := MkArgs {
   replay     : option (RandomSeed * nat);
